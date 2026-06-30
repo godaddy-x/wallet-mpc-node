@@ -60,12 +60,14 @@ Keygen and Sign are routed by the **`algorithm`** field on broker session DTOs (
 
 ## Official releases
 
-Download pre-built binaries **only** from **[GitHub Releases](https://github.com/godaddy-x/wallet-mpc-node/releases)**. Pushing a tag `v*` triggers [`.github/workflows/release.yml`](.github/workflows/release.yml) to cross-compile and publish:
+Download pre-built binaries **only** from **[GitHub Releases](https://github.com/godaddy-x/wallet-mpc-node/releases)**. Pushing a tag `v*` runs [`build_release.sh`](build_release.sh) via Actions (`CGO_ENABLED=0`, `-trimpath`, `-ldflags="-s -w"` — stripped static binaries, smaller than a plain `go build`):
 
 | Asset | Platform |
 |-------|----------|
 | `wallet-mpc-node-linux-amd64` | Linux x86_64 |
 | `wallet-mpc-node-linux-arm64` | Linux ARM64 |
+| `wallet-mpc-node-darwin-amd64` | macOS Intel (x86_64) |
+| `wallet-mpc-node-darwin-arm64` | macOS Apple Silicon (ARM64) |
 | `wallet-mpc-node-windows-amd64.exe` | Windows x86_64 |
 | `SHA256SUMS` | SHA-256 checksums for all binaries above |
 
@@ -114,12 +116,14 @@ chmod +x build_release.sh && ./build_release.sh   # Linux / macOS
 |----------|--------|
 | linux/amd64 | `output/wallet-mpc-node-linux-amd64` |
 | linux/arm64 | `output/wallet-mpc-node-linux-arm64` |
+| darwin/amd64 | `output/wallet-mpc-node-darwin-amd64` |
+| darwin/arm64 | `output/wallet-mpc-node-darwin-arm64` |
 | windows/amd64 | `output/wallet-mpc-node-windows-amd64.exe` |
 
 Manual example (linux/amd64):
 
 ```bash
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o output/wallet-mpc-node-linux-amd64 .
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o output/wallet-mpc-node-linux-amd64 .
 ```
 
 **Run** (one config per node, e.g. `cli_node0.json`):

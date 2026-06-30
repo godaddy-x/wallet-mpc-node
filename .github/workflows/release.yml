@@ -40,5 +40,7 @@ jobs:
           files: |
             output/wallet-mpc-node-linux-amd64
             output/wallet-mpc-node-linux-arm64
+            output/wallet-mpc-node-darwin-amd64
+            output/wallet-mpc-node-darwin-arm64
             output/wallet-mpc-node-windows-amd64.exe
             output/SHA256SUMS

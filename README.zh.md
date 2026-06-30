@@ -66,6 +66,8 @@ Keygen / Sign 由 broker 会话 DTO 的 **`algorithm`** 字段路由（`ecdsa` |
 |------|------|
 | `wallet-mpc-node-linux-amd64` | Linux x86_64 |
 | `wallet-mpc-node-linux-arm64` | Linux ARM64 |
+| `wallet-mpc-node-darwin-amd64` | macOS Intel（x86_64） |
+| `wallet-mpc-node-darwin-arm64` | macOS Apple Silicon（ARM64） |
 | `wallet-mpc-node-windows-amd64.exe` | Windows x86_64 |
 | `SHA256SUMS` | 以上二进制 SHA-256 校验和 |
 
@@ -114,6 +116,8 @@ chmod +x build_release.sh && ./build_release.sh   # Linux / macOS
 |------|------|
 | linux/amd64 | `output/wallet-mpc-node-linux-amd64` |
 | linux/arm64 | `output/wallet-mpc-node-linux-arm64` |
+| darwin/amd64 | `output/wallet-mpc-node-darwin-amd64` |
+| darwin/arm64 | `output/wallet-mpc-node-darwin-arm64` |
 | windows/amd64 | `output/wallet-mpc-node-windows-amd64.exe` |
 
 手动示例（linux/amd64）：
