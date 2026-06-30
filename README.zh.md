@@ -48,15 +48,49 @@ Keygen / Sign 由 broker 会话 DTO 的 **`algorithm`** 字段路由（`ecdsa` |
 ├── mpc_ecdsa.go, mpc_ed25519.go     # CGGMP / FROST 流程
 ├── connect/                         # WebSocket SDK
 ├── dto/                             # 协议 DTO（broker ↔ node）
+├── examples/                        # cli_node*.example.json
 ├── mpc/
 │   ├── alg_ecdsa/                   # CGGMP
 │   ├── alg_ed25519/                 # FROST
 │   ├── hd/                          # HD 派生
 │   ├── ecdsa/, ed25519/             # 链上验签
 ├── build_release.bat, build_release.sh
+└── .github/workflows/release.yml   # tag → Release + SHA256SUMS
+```
+
+## 官方发行
+
+预编译二进制 **仅** 从 **[GitHub Releases](https://github.com/godaddy-x/wallet-mpc-node/releases)** 下载。推送 `v*` 标签会触发 [`.github/workflows/release.yml`](.github/workflows/release.yml) 交叉编译并发布：
+
+| 产物 | 平台 |
+|------|------|
+| `wallet-mpc-node-linux-amd64` | Linux x86_64 |
+| `wallet-mpc-node-linux-arm64` | Linux ARM64 |
+| `wallet-mpc-node-windows-amd64.exe` | Windows x86_64 |
+| `SHA256SUMS` | 以上二进制 SHA-256 校验和 |
+
+**部署前校验：**
+
+```bash
+# Linux / macOS — 在下载目录执行（仅下载单平台时可忽略缺失文件）
+sha256sum -c --ignore-missing SHA256SUMS
+```
+
+```powershell
+# Windows — 与 SHA256SUMS 中 wallet-mpc-node-windows-amd64.exe 一行比对
+Get-FileHash .\wallet-mpc-node-windows-amd64.exe -Algorithm SHA256
+```
+
+维护者发布版本：
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
 ```
 
 ## 构建与运行
+
+> ℹ️ **生产部署**请使用上方 [官方发行](#官方发行) 中的预编译二进制；以下内容仅供开发调试。
 
 **环境要求：** Go 1.26+
 
@@ -88,8 +122,6 @@ chmod +x build_release.sh && ./build_release.sh   # Linux / macOS
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o output/wallet-mpc-node-linux-amd64 .
 ```
 
-可选 [UPX](https://upx.github.io/) 压缩（`upx --best --lzma output/...`）可减小体积；部分杀毒软件可能误报。
-
 **运行**（每节点一份配置，如 `cli_node0.json`）：
 
 ```bash
@@ -107,20 +139,51 @@ export MPC_KEYSTORE_KEY=<tee-unsealed>
 
 ## 配置说明
 
-| 项 | 说明 |
-|----|------|
-| `cli_nodeN.json` | broker 域名、WebSocket、ML-DSA 认证、`shardKeysDir` |
-| `-keysdir` | 分片目录（覆盖 JSON；默认 `keys`） |
-| `MPC_KEYSTORE_KEY` / `keystoreKey` | 分片加密密钥（必填，不支持明文分片） |
+复制 [`examples/cli_node0.example.json`](examples/cli_node0.example.json) 为 `cli_node0.json`（已 gitignore），填入 broker **`nodeBindings`** 中的值。生产 TEE 可在 JSON 中省略 `clientPrk` / `keystoreKey`，改由 env 注入 — 见 [`examples/cli_node.prod.example.json`](examples/cli_node.prod.example.json)。
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| `domain` | 是 | broker 节点 WebSocket 地址（`host:port`，broker `port+100`） |
+| `source` | 是 | 节点 ID（`node0`、`node1`…），须与 broker `nodeBindings` 一致 |
+| `keyPath` | 是 | 登录后 WS 路由（默认 `/ws/key`） |
+| `loginPath` | 是 | Plan2 登录路由（默认 `/ws/login`） |
+| `clientNo` | 是 | broker `nodeBindings` 中的 Plan2 clientNo |
+| `serverPub` | 是 | broker ML-DSA-87 公钥 |
+| `clientPrk` | 是* | 节点 ML-DSA-87 私钥（*生产：`MPC_NODE_CLIENT_PRK` env） |
+| `broadcastKey` | 是 | Push 签名校验 key（hex），须与 broker 一致 |
+| `keystoreKey` | 是* | 分片落盘加密密钥（*生产：`MPC_KEYSTORE_KEY` env） |
+| `shardKeysDir` | 否 | 分片目录（默认 `keys`；可被 `-keysdir` 覆盖） |
+
+<details>
+<summary><code>cli_node0.json</code> — 最小示例</summary>
+
+```json
+{
+  "domain": "127.0.0.1:9522",
+  "source": "node0",
+  "keyPath": "/ws/key",
+  "loginPath": "/ws/login",
+  "clientNo": 0,
+  "clientPrk": "REPLACE_WITH_ML-DSA-87_PRIVATE_KEY",
+  "serverPub": "REPLACE_WITH_BROKER_NODEBINDING_PUBLIC_KEY",
+  "broadcastKey": "REPLACE_WITH_BROKER_PUSH_BROADCAST_KEY_HEX",
+  "keystoreKey": "REPLACE_WITH_SHARD_ENCRYPTION_KEY",
+  "shardKeysDir": "keys"
+}
+```
+
+</details>
 
 ## 依赖
 
-| 仓库 | 用途 |
-|------|------|
-| [getamis/alice](https://github.com/getamis/alice) | CGGMP（ECDSA）· FROST（Ed25519） |
-| [godaddy-x/eccrypto](https://github.com/godaddy-x/eccrypto) | ML-KEM-1024 · ML-DSA-87 |
-| [godaddy-x/freego](https://github.com/godaddy-x/freego) | WebSocket / 工具 |
-| [godaddy-x/wallet-adapter](https://github.com/godaddy-x/wallet-adapter) | HD 派生类型 |
+以下为 `go.mod` 直接依赖。所列许可证均**与 GPL-3.0 兼容**。
+
+| 仓库 | 许可证 | 用途 |
+|------|--------|------|
+| [getamis/alice](https://github.com/getamis/alice) | Apache-2.0 | CGGMP（ECDSA）· FROST（Ed25519） |
+| [godaddy-x/eccrypto](https://github.com/godaddy-x/eccrypto) | MIT | ML-KEM-1024 · ML-DSA-87 |
+| [godaddy-x/freego](https://github.com/godaddy-x/freego) | MIT | WebSocket / 工具 |
+| [godaddy-x/wallet-adapter](https://github.com/godaddy-x/wallet-adapter) | MIT | HD 派生类型 |
 
 ## 许可证
 

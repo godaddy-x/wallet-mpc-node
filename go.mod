@@ -7,8 +7,8 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0
 	github.com/getamis/alice v1.0.7
 	github.com/getamis/sirius v1.1.7
-	github.com/godaddy-x/eccrypto v1.1.16
-	github.com/godaddy-x/freego v1.1.24
+	github.com/godaddy-x/eccrypto v1.1.17
+	github.com/godaddy-x/freego v1.1.25
 	github.com/godaddy-x/wallet-adapter v1.0.6
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/mailru/easyjson v0.9.1

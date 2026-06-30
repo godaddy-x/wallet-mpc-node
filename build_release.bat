@@ -28,13 +28,6 @@ echo     wallet-mpc-node-linux-amd64
 echo     wallet-mpc-node-linux-arm64
 echo     wallet-mpc-node-windows-amd64.exe
 echo ==========================================
-echo.
-echo [Optional] If binary size matters, compress with UPX (step 2):
-echo   upx --best --lzma output\wallet-mpc-node-linux-amd64
-echo   upx --best --lzma output\wallet-mpc-node-linux-arm64
-echo   upx --best --lzma output\wallet-mpc-node-windows-amd64.exe
-echo.
-echo UPX is not required for build or runtime. Some AV tools may flag packed binaries.
 exit /b 0
 
 :build_one

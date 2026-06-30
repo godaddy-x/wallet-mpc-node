@@ -257,7 +257,7 @@ func RunMPCNode(cliConfig connect.SdkConfig) error {
 //	.\wallet-mpc-node.exe -config cli_node0.json -logdir .\logs
 //	.\wallet-mpc-node.exe -config cli_node0.json -keysdir .\data\shards
 //
-// 生产 TEE（私钥不进 JSON，由 env 覆盖，见 cli_node.prod.example.json）：
+// 生产 TEE（私钥不进 JSON，由 env 覆盖，见 examples/cli_node.prod.example.json）：
 //
 //	set MPC_NODE_CLIENT_PRK=<tee-unsealed>
 //	set MPC_KEYSTORE_KEY=<tee-unsealed>

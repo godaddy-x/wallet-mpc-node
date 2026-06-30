@@ -42,10 +42,10 @@ github.com/go-sql-driver/mysql v1.7.0 h1:ueSltNNllEqE3qcWBTD0iQd3IpL/6U+mJxLkazJ
 github.com/go-sql-driver/mysql v1.7.0/go.mod h1:OXbVy3sEdcQ2Doequ6Z5BW6fXNQTmx+9S1MCJN5yJMI=
 github.com/go-stack/stack v1.8.0 h1:5SgMzNM5HxrEjV0ww2lTmX6E2Izsfxas4+YHWRs3Lsk=
 github.com/go-stack/stack v1.8.0/go.mod h1:v0f6uXyyMGvRgIKkXu+yp6POWl0qKG85gN/melR3HDY=
-github.com/godaddy-x/eccrypto v1.1.16 h1:rHoa8HlQbX79pnp8pIJk7yFFNUVNlSFanMmaa/5p3rE=
-github.com/godaddy-x/eccrypto v1.1.16/go.mod h1:yF2UZDeOaJ8U3DfmdaDP4by7Vr7SaWRpZ3d4zOczoUw=
-github.com/godaddy-x/freego v1.1.24 h1:rUQCL8d7sbRP4csXdaXKCyFh4BDBdMhf8tg2LQuUFSI=
-github.com/godaddy-x/freego v1.1.24/go.mod h1:wrcZnxvNFbZCPYiVPsB4rCT33oBfRyymefDypvdPe38=
+github.com/godaddy-x/eccrypto v1.1.17 h1:2IQpJoGaRzCqMU+9Dzt3wLeTrY/TRzC5CtQxKvKD/DY=
+github.com/godaddy-x/eccrypto v1.1.17/go.mod h1:yF2UZDeOaJ8U3DfmdaDP4by7Vr7SaWRpZ3d4zOczoUw=
+github.com/godaddy-x/freego v1.1.25 h1:7CjpyAE8lbl/bc68LfgzlF/4MlSI6VaYTo8AVNvBhzk=
+github.com/godaddy-x/freego v1.1.25/go.mod h1:sO6K//AIcu5FZ2GpaV5hR6FnnIX0F/2+9sYU7Yjz6WU=
 github.com/godaddy-x/wallet-adapter v1.0.6 h1:Ki3aOp5vv5TCbZFZ9NWW9QpQpmn6od38wrmqiK8j0eY=
 github.com/godaddy-x/wallet-adapter v1.0.6/go.mod h1:l2+ywGX+Ti+YCUc7rwZKUcKcqAwR6e6Qw2hcerHj/TQ=
 github.com/golang/protobuf v1.5.4 h1:i7eJL8qZTpSEXOPTxNKhASYpMn+8e5Q6AdndVa1dWek=
