@@ -10,6 +10,8 @@ keys/
 *.exe
 output/
 cli_node*.json
+plan2-provision/
 node*.log
 docs/
 build.sh
+provision/

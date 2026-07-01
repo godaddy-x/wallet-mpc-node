@@ -49,6 +49,7 @@ Keygen / Sign 由 broker 会话 DTO 的 **`algorithm`** 字段路由（`ecdsa` |
 ├── connect/                         # WebSocket SDK
 ├── dto/                             # 协议 DTO（broker ↔ node）
 ├── examples/                        # cli_node*.example.json
+├── pqc-keypair.md                   # PQC（ML-DSA-87）密钥对生成与安全说明
 ├── mpc/
 │   ├── alg_ecdsa/                   # CGGMP
 │   ├── alg_ed25519/                 # FROST
@@ -141,6 +142,21 @@ export MPC_KEYSTORE_KEY=<tee-unsealed>
 ./wallet-mpc-node -config=cli_node0.json
 ```
 
+## PQC 密钥对生成
+
+在填写配置中的 `clientPrk` 之前，需为节点生成 **PQC 身份密钥对**（ML-DSA-87）。**完整流程、落盘格式与安全要点见：** [`pqc-keypair.md`](pqc-keypair.md)（英文）。
+
+```bash
+# 开发环境（明文 private.key，勿用于生产）
+./wallet-mpc-node -genkey
+
+# 生产环境（加密 private.key）
+export MPC_PLAN2_WRAP_KEY='<强口令>'
+./wallet-mpc-node -genkey -enc -outdir /secure/path/node0-pqc
+```
+
+`private.key` 对应 `clientPrk` 或 `MPC_NODE_CLIENT_PRK`；`public.pem` 需登记到 broker 的 `nodeBindings`。
+
 ## 配置说明
 
 复制 [`examples/cli_node0.example.json`](examples/cli_node0.example.json) 为 `cli_node0.json`（已 gitignore），填入 broker **`nodeBindings`** 中的值。生产 TEE 可在 JSON 中省略 `clientPrk` / `keystoreKey`，改由 env 注入 — 见 [`examples/cli_node.prod.example.json`](examples/cli_node.prod.example.json)。
@@ -150,8 +166,8 @@ export MPC_KEYSTORE_KEY=<tee-unsealed>
 | `domain` | 是 | broker 节点 WebSocket 地址（`host:port`，broker `port+100`） |
 | `source` | 是 | 节点 ID（`node0`、`node1`…），须与 broker `nodeBindings` 一致 |
 | `keyPath` | 是 | 登录后 WS 路由（默认 `/ws/key`） |
-| `loginPath` | 是 | Plan2 登录路由（默认 `/ws/login`） |
-| `clientNo` | 是 | broker `nodeBindings` 中的 Plan2 clientNo |
+| `loginPath` | 是 | PQC 身份登录路由（默认 `/ws/login`） |
+| `clientNo` | 是 | broker `nodeBindings` 中分配的 clientNo |
 | `serverPub` | 是 | broker ML-DSA-87 公钥 |
 | `clientPrk` | 是* | 节点 ML-DSA-87 私钥（*生产：`MPC_NODE_CLIENT_PRK` env） |
 | `broadcastKey` | 是 | Push 签名校验 key（hex），须与 broker 一致 |

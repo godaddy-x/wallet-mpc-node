@@ -8,7 +8,7 @@ require (
 	github.com/getamis/alice v1.0.7
 	github.com/getamis/sirius v1.1.7
 	github.com/godaddy-x/eccrypto v1.1.17
-	github.com/godaddy-x/freego v1.1.25
+	github.com/godaddy-x/freego v1.1.26
 	github.com/godaddy-x/wallet-adapter v1.0.6
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/mailru/easyjson v0.9.1
@@ -61,3 +61,5 @@ require (
 )
 
 replace github.com/btcsuite/btcd => github.com/btcsuite/btcd v0.22.1
+
+//replace github.com/godaddy-x/freego => ../freego

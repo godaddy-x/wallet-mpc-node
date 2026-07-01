@@ -4,9 +4,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 
+	"github.com/godaddy-x/freego/utils/crypto"
 	"github.com/godaddy-x/wallet-mpc-node/connect"
 	"github.com/godaddy-x/wallet-mpc-node/mpc/keystore"
 )
@@ -91,6 +93,26 @@ func LaunchMPCNodeForTest(configPath string) {
 	_, _ = LaunchMPCNode(configPath, "info", true, wd, defaultShardKeysDir)
 }
 
+func runGenKey(requireEnc bool, outDir string) (*crypto.Plan2ProvisionResult, error) {
+	wrapKey := strings.TrimSpace(os.Getenv(crypto.Plan2WrapKeyEnv))
+	if requireEnc && wrapKey == "" {
+		return nil, fmt.Errorf("%s is required when -enc is set", crypto.Plan2WrapKeyEnv)
+	}
+	if wrapKey == "" {
+		log.Printf("WARN: genkey: %s not set, writing plaintext %s", crypto.Plan2WrapKeyEnv, crypto.Plan2PrivateFile)
+	}
+	key, err := crypto.GeneratePlan2KeyPair()
+	if err != nil {
+		return nil, err
+	}
+	result, err := crypto.WritePlan2KeyProvision(outDir, wrapKey, key)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("genkey: wrote %s %s\n", result.PublicPath(), result.PrivatePath())
+	return result, nil
+}
+
 // Main 解析标准 flag 并启动节点，随后长时间阻塞以保持进程（与原有 main 行为一致）。
 func run() {
 	name := flag.String("name", "mpc-node", "节点名称")
@@ -100,9 +122,20 @@ func run() {
 	logDir := flag.String("logdir", "", "日志文件夹路径（默认可执行文件目录）")
 	keysDir := flag.String("keysdir", "", "MPC 分片落盘目录（覆盖 json shardKeysDir；默认 shardKeysDir 或 keys）")
 	migrateKeys := flag.Bool("migrate-keys", false, "将 keysdir 下明文分片批量加密后退出（需 MPC_KEYSTORE_KEY 或 keystoreKey）")
+	genKey := flag.Bool("genkey", false, "生成 Plan2 密钥")
+	genKeyEnc := flag.Bool("enc", false, "与 -genkey 合用：强制加密（需 env MPC_PLAN2_WRAP_KEY）")
+	genKeyOutDir := flag.String("outdir", "", "与 -genkey 合用：输出目录（默认 plan2-provision）")
 	flag.Parse()
 
 	fmt.Println(*name)
+
+	if *genKey {
+		if _, err := runGenKey(*genKeyEnc, *genKeyOutDir); err != nil {
+			fmt.Fprintf(os.Stderr, "genkey failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	if *migrateKeys {
 		if err := migrateShardKeysDir(*configFile, *keysDir); err != nil {

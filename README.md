@@ -49,6 +49,7 @@ Keygen and Sign are routed by the **`algorithm`** field on broker session DTOs (
 ├── connect/                         # WebSocket SDK
 ├── dto/                             # protocol DTOs (broker ↔ node)
 ├── examples/                        # cli_node*.example.json
+├── pqc-keypair.md                   # PQC (ML-DSA-87) key pair provisioning
 ├── mpc/
 │   ├── alg_ecdsa/                   # CGGMP
 │   ├── alg_ed25519/                 # FROST
@@ -141,6 +142,21 @@ export MPC_KEYSTORE_KEY=<tee-unsealed>
 ./wallet-mpc-node -config=cli_node0.json
 ```
 
+## PQC key pair provisioning
+
+Before filling `clientPrk` in node config, generate the node **PQC identity key pair** (ML-DSA-87) with `-genkey`. **Full workflow, file format, and security checklist:** [`pqc-keypair.md`](pqc-keypair.md).
+
+```bash
+# Development (plaintext private.key — not for production)
+./wallet-mpc-node -genkey
+
+# Production (encrypted private.key)
+export MPC_PLAN2_WRAP_KEY='<strong passphrase>'
+./wallet-mpc-node -genkey -enc -outdir /secure/path/node0-pqc
+```
+
+Map `private.key` → `clientPrk` or `MPC_NODE_CLIENT_PRK`; register `public.pem` with broker `nodeBindings`.
+
 ## Configuration
 
 Copy [`examples/cli_node0.example.json`](examples/cli_node0.example.json) to `cli_node0.json` (gitignored) and fill in values from broker **`nodeBindings`**. For production TEE, omit `clientPrk` / `keystoreKey` from JSON and inject via env — see [`examples/cli_node.prod.example.json`](examples/cli_node.prod.example.json).
@@ -150,8 +166,8 @@ Copy [`examples/cli_node0.example.json`](examples/cli_node0.example.json) to `cl
 | `domain` | yes | Broker node WebSocket host (`host:port`, broker `port+100`) |
 | `source` | yes | Node ID (`node0`, `node1`, …) — must match broker `nodeBindings` |
 | `keyPath` | yes | WS route after login (default `/ws/key`) |
-| `loginPath` | yes | Plan2 login route (default `/ws/login`) |
-| `clientNo` | yes | Plan2 client number from broker `nodeBindings` |
+| `loginPath` | yes | PQC identity login route (default `/ws/login`) |
+| `clientNo` | yes | Broker-assigned client number in `nodeBindings` |
 | `serverPub` | yes | Broker ML-DSA-87 public key |
 | `clientPrk` | yes* | Node ML-DSA-87 private key (*prod: `MPC_NODE_CLIENT_PRK` env) |
 | `broadcastKey` | yes | Push signature key (hex); must match broker |
