@@ -17,8 +17,9 @@ The node and **wallet-mpc-broker** establish mutual trust on the WebSocket layer
 
 After generation:
 
-- Contents of `private.key` → config field `clientPrk` or env `MPC_NODE_CLIENT_PRK`
-- Contents of `public.pem` → give to broker ops to register in that node's `nodeBindings` (broker-side; not done in this repo)
+- `clientNo` — 18-digit PQC certificate number (same algorithm as admin `cipherNo`); use in `nodeBindings` / Plan2 routing
+- Contents of `{clientNo}.key` → config field `clientPrk` or env `MPC_NODE_CLIENT_PRK`
+- Contents of `{clientNo}.pem` → give to broker ops to register in that node's `nodeBindings` (broker-side; not done in this repo)
 - `serverPub` still comes from broker `nodeBindings` — **not** from `-genkey`
 
 ---
@@ -69,7 +70,8 @@ $env:MPC_PLAN2_WRAP_KEY = '<strong passphrase>'
 ### 3.3 Success output
 
 ```text
-genkey: wrote /abs/path/plan2-provision/public.pem /abs/path/plan2-provision/private.key
+genkey: clientNo=202606171736131385
+genkey: wrote /abs/path/plan2-provision/202606171736131385.pem /abs/path/plan2-provision/202606171736131385.key
 ```
 
 ---
@@ -78,7 +80,7 @@ genkey: wrote /abs/path/plan2-provision/public.pem /abs/path/plan2-provision/pri
 
 ```mermaid
 flowchart LR
-  A[Run -genkey in isolated env] --> B[public.pem + private.key]
+  A[Run -genkey in isolated env] --> B["{clientNo}.pem + {clientNo}.key"]
   B --> C[Register PQC public key in broker nodeBindings]
   B --> D[Inject PQC private key at runtime]
   C --> E[Obtain serverPub etc. from broker]
@@ -96,14 +98,16 @@ Default directory `plan2-provision/` (listed in `.gitignore` — **do not commit
 
 | File | Mode | Content |
 |------|------|---------|
-| `public.pem` | `0644` | **Single line** of standard Base64 ML-DSA-87 public key (no PEM headers, no JSON) |
-| `private.key` | `0600` | **Single line**: plaintext Base64 private key, or `plan2-provision-v1:` + AES-GCM ciphertext (Base64) |
+| `{clientNo}.pem` | `0644` | **Single line** of standard Base64 ML-DSA-87 public key (no PEM headers, no JSON) |
+| `{clientNo}.key` | `0600` | **Single line**: plaintext Base64 private key, or `plan2-provision-v1:` + AES-GCM ciphertext (Base64) |
+
+`clientNo` is auto-generated (18 digits: `yyyyMMddHHmmss` + 4 random digits), matching admin PQC certificate numbering (`cipherNo`).
 
 The directory itself is created with mode `0700`.
 
 ### Step 3: Register public key with broker
 
-Provide the single-line Base64 from `public.pem` to broker operations for the node's `nodeBindings` entry. Exact field names follow broker documentation.
+Provide the single-line Base64 from `{clientNo}.pem` to broker operations for the node's `nodeBindings` entry. Set `nodeBindings.clientNo` to the printed `clientNo`.
 
 ### Step 4: Configure the node
 
@@ -113,11 +117,11 @@ Copy [`examples/cli_node0.example.json`](examples/cli_node0.example.json) to `cl
 
 | Environment | Method |
 |-------------|--------|
-| Development | JSON field `clientPrk`: single-line Base64 from decrypted `private.key` |
+| Development | JSON field `clientPrk`: single-line Base64 from decrypted `{clientNo}.key` |
 | Production TEE | Env `MPC_NODE_CLIENT_PRK` (overrides JSON `clientPrk`) |
 
 ```bash
-export MPC_NODE_CLIENT_PRK='<single-line Base64 from decrypted private.key>'
+export MPC_NODE_CLIENT_PRK='<single-line Base64 from decrypted {clientNo}.key>'
 export MPC_KEYSTORE_KEY='<shard at-rest encryption key>'
 ./wallet-mpc-node -config=cli_node0.json
 ```
@@ -139,7 +143,7 @@ When `MPC_PLAN2_WRAP_KEY` is set:
 3. AAD is the fixed string `plan2-provision-v1`
 4. `private.key` contains: `plan2-provision-v1:` + Base64 ciphertext
 
-Decryption requires the same `MPC_PLAN2_WRAP_KEY`. Decrypt logic lives in `freego`'s `ReadPlan2PrivateKey` for tooling; at runtime the node typically receives the decrypted Base64 via `MPC_NODE_CLIENT_PRK`.
+Decryption requires the same `MPC_PLAN2_WRAP_KEY`. Decrypt logic lives in `freego`'s `ReadPlan2PrivateKey(dir, clientNo, wrapKey)` for tooling; at runtime the node typically receives the decrypted Base64 via `MPC_NODE_CLIENT_PRK`.
 
 ---
 
@@ -155,10 +159,10 @@ Decryption requires the same `MPC_PLAN2_WRAP_KEY`. Decrypt logic lives in `freeg
 
 | Risk | Mitigation |
 |------|------------|
-| Plaintext `private.key` leak | Production **must** use `-enc` + strong `MPC_PLAN2_WRAP_KEY`; never commit plaintext keys to git, chat, or tickets |
+| Plaintext `{clientNo}.key` leak | Production **must** use `-enc` + strong `MPC_PLAN2_WRAP_KEY`; never commit plaintext keys to git, chat, or tickets |
 | Wrap passphrase leak | Store `MPC_PLAN2_WRAP_KEY` separately from the private key; never write it to disk or JSON |
 | Runtime exposure | Inject `MPC_NODE_CLIENT_PRK` via TEE / KMS in production; omit `clientPrk` from JSON |
-| File permissions | Ensure `private.key` is `0600` and directory `0700`; avoid world-readable paths |
+| File permissions | Ensure `{clientNo}.key` is `0600` and directory `0700`; avoid world-readable paths |
 
 ### 6.3 Public key and broker coordination
 
@@ -170,7 +174,7 @@ Decryption requires the same `MPC_PLAN2_WRAP_KEY`. Decrypt logic lives in `freeg
 
 | Material | Purpose |
 |----------|---------|
-| PQC `clientPrk` / `public.pem` | WebSocket identity; ML-DSA signature layer |
+| PQC `clientPrk` / `{clientNo}.pem` | WebSocket identity; ML-DSA signature layer |
 | `keystoreKey` / `MPC_KEYSTORE_KEY` | Encrypt local MPC shard files |
 | MPC threshold shards | On-chain signing (CGGMP / FROST); created by Keygen; stored under `keysdir` |
 
@@ -197,14 +201,17 @@ These serve different roles; rotation and backup policies should be defined sepa
 
 ## 8. FAQ
 
-**Q: Why isn't `public.pem` a standard PEM block?**  
+**Q: Why isn't `{clientNo}.pem` a standard PEM block?**  
 A: This project uses a **single line of Base64** ML-DSA-87 key material for TEE injection and config management — no `-----BEGIN ...-----` headers.
 
-**Q: Why does `private.key` contain only one line?**  
+**Q: Why does `{clientNo}.key` contain only one line?**  
 A: One file, one PQC private key. Broker-side keys are managed by the broker and are not combined with node private keys.
 
-**Q: What if I forget `MPC_PLAN2_WRAP_KEY`?**  
-A: Encrypted `private.key` cannot be recovered. Re-run `-genkey` and update the public key on the broker.
+**Q: What is `clientNo`?**  
+A: An 18-digit PQC certificate number (`yyyyMMddHHmmss` + 4 random digits), same scheme as admin `cipherNo`. It names the output files and maps to Plan2 / binding `clientNo`.
 
-**Q: Can the node process read `private.key` automatically?**  
+**Q: What if I forget `MPC_PLAN2_WRAP_KEY`?**  
+A: Encrypted `{clientNo}.key` cannot be recovered. Re-run `-genkey` and update the public key on the broker.
+
+**Q: Can the node process read `{clientNo}.key` automatically?**  
 A: Current design expects operators to inject decrypted Base64 into `MPC_NODE_CLIENT_PRK` (or JSON in dev). `-genkey` is offline provisioning only.

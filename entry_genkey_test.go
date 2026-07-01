@@ -23,11 +23,11 @@ func assertProvisionEncrypted(t *testing.T, result *crypto.Plan2ProvisionResult,
 	assertFileExists(t, result.PublicPath())
 	assertFileExists(t, result.PrivatePath())
 
-	pub, err := crypto.ReadPlan2PublicKey(result.Dir)
+	pub, err := crypto.ReadPlan2PublicKey(result.Dir, result.ClientNo)
 	if err != nil {
 		t.Fatal("read public:", err)
 	}
-	priv, err := crypto.ReadPlan2PrivateKey(result.Dir, wrapKey)
+	priv, err := crypto.ReadPlan2PrivateKey(result.Dir, result.ClientNo, wrapKey)
 	if err != nil {
 		t.Fatal("read private:", err)
 	}
@@ -47,11 +47,11 @@ func assertProvisionMLDSARoundtrip(t *testing.T, result *crypto.Plan2ProvisionRe
 	assertFileExists(t, result.PublicPath())
 	assertFileExists(t, result.PrivatePath())
 
-	pub, err := crypto.ReadPlan2PublicKey(result.Dir)
+	pub, err := crypto.ReadPlan2PublicKey(result.Dir, result.ClientNo)
 	if err != nil {
-		t.Fatal("read public.pem:", err)
+		t.Fatal("read public:", err)
 	}
-	priv, err := crypto.ReadPlan2PrivateKey(result.Dir, wrapKey)
+	priv, err := crypto.ReadPlan2PrivateKey(result.Dir, result.ClientNo, wrapKey)
 	if err != nil {
 		t.Fatal("read private.key:", err)
 	}

@@ -99,7 +99,7 @@ func runGenKey(requireEnc bool, outDir string) (*crypto.Plan2ProvisionResult, er
 		return nil, fmt.Errorf("%s is required when -enc is set", crypto.Plan2WrapKeyEnv)
 	}
 	if wrapKey == "" {
-		log.Printf("WARN: genkey: %s not set, writing plaintext %s", crypto.Plan2WrapKeyEnv, crypto.Plan2PrivateFile)
+		log.Printf("WARN: genkey: %s not set, writing plaintext private key file", crypto.Plan2WrapKeyEnv)
 	}
 	key, err := crypto.GeneratePlan2KeyPair()
 	if err != nil {
@@ -109,6 +109,7 @@ func runGenKey(requireEnc bool, outDir string) (*crypto.Plan2ProvisionResult, er
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("genkey: clientNo=%d\n", result.ClientNo)
 	fmt.Printf("genkey: wrote %s %s\n", result.PublicPath(), result.PrivatePath())
 	return result, nil
 }
