@@ -1,7 +1,9 @@
 ﻿// 本文件：Alice FROST Ed25519 协议 WS 路由与节点侧 keygen/sign 执行。
-package main
+package protocol
 
 import (
+	"github.com/godaddy-x/wallet-mpc-node/internal/config"
+	"github.com/godaddy-x/wallet-mpc-node/internal/log"
 	"context"
 	"encoding/base64"
 	"errors"
@@ -92,7 +94,7 @@ func runKeygenNodeFROST(start dto.CliMPCKeygenStartRes, myNodeID string, wsClien
 
 	router.setPhase("dkg")
 	pm := router.peerManager()
-	logKeygenf("node=%s task=%s phase=frost-dkg begin\n", myNodeID, start.TaskID)
+	log.Keygenf("node=%s task=%s phase=frost-dkg begin\n", myNodeID, start.TaskID)
 	dkgResult, err := alg_ed25519.RunDKG(ctx, myNodeID, sortedIDs, threshold, pm, router.inbox)
 	if err != nil {
 		return "", err
@@ -102,14 +104,14 @@ func runKeygenNodeFROST(start dto.CliMPCKeygenStartRes, myNodeID string, wsClien
 		return "", err
 	}
 	keyID = alg_ed25519.KeyIDFromPubHex(pubHex)
-	logKeygenf("node=%s task=%s phase=frost-dkg done keyID=%s\n", myNodeID, start.TaskID, keyID)
+	log.Keygenf("node=%s task=%s phase=frost-dkg done keyID=%s\n", myNodeID, start.TaskID, keyID)
 	router.setPhase("idle")
 
 	shareData, err := alg_ed25519.BuildNodeShareData(keyID, myNodeID, start.TaskID, sortedIDs, threshold, dkgResult)
 	if err != nil {
 		return "", err
 	}
-	store := alg_ed25519.NewFileKeyStore(shardKeysDir)
+	store := alg_ed25519.NewFileKeyStore(config.ShardKeysDir())
 	if err := store.Save(shareData); err != nil {
 		return "", fmt.Errorf("save frost share: %w", err)
 	}
@@ -133,7 +135,7 @@ func runSignNodeFROST(start dto.CliMPCSignStartRes, myNodeID string, wsClient *s
 	lock.Lock()
 	defer lock.Unlock()
 
-	store := alg_ed25519.NewFileKeyStore(shardKeysDir)
+	store := alg_ed25519.NewFileKeyStore(config.ShardKeysDir())
 	shareData, err := store.Load(start.KeyID, myNodeID)
 	if err != nil {
 		return "", false, 0, fmt.Errorf("load frost share: %w", err)
@@ -151,7 +153,7 @@ func runSignNodeFROST(start dto.CliMPCSignStartRes, myNodeID string, wsClient *s
 
 	pm := router.peerManager()
 	router.setPhase("sign")
-	logSignErrf("TRACE_NODE_SIGN_PHASE node=%s task=%s phase=frost-sign begin", myNodeID, start.TaskID)
+	log.SignErrf("TRACE_NODE_SIGN_PHASE node=%s task=%s phase=frost-sign begin", myNodeID, start.TaskID)
 	out, err := alg_ed25519.RunSign(
 		ctx,
 		myNodeID,

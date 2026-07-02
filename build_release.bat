@@ -44,7 +44,7 @@ set GOARCH=%~2
 set OUT=output\%~3
 echo.
 echo --- build %GOOS%/%GOARCH% ---
-go build -trimpath -installsuffix cgo -ldflags="%LDFLAGS%" -o "%OUT%" .
+go build -trimpath -installsuffix cgo -ldflags="%LDFLAGS%" -o "%OUT%" ./cmd/wallet-mpc-node
 if %errorlevel% neq 0 (
     echo [ERROR] go build failed for %GOOS%/%GOARCH%
     exit /b 1

@@ -43,11 +43,17 @@ Keygen and Sign are routed by the **`algorithm`** field on broker session DTOs (
 
 ```text
 .
-├── main.go, config.go, entry.go
-├── mpc_keygen.go, mpc_sign.go       # route by algorithm
-├── mpc_ecdsa.go, mpc_ed25519.go     # CGGMP / FROST flows
-├── connect/                         # WebSocket SDK
+├── cmd/wallet-mpc-node/             # process entry
+├── internal/
+│   ├── app/                         # CLI, launch, genkey
+│   ├── broker/                      # WebSocket client to broker
+│   ├── config/                      # JSON + TEE env + shard paths
+│   ├── log/                         # node logging
+│   ├── protocol/                    # keygen/sign orchestration + CGGMP/FROST adapters
+│   └── tempkey/                     # ML-KEM temporary keys
+├── connect/                         # shared connection JSON schema
 ├── dto/                             # protocol DTOs (broker ↔ node)
+├── integration/                     # integration tests
 ├── examples/                        # cli_node*.example.json
 ├── pqc-keypair.md                   # PQC (ML-DSA-87) key pair provisioning
 ├── mpc/
@@ -100,7 +106,7 @@ git push origin v1.0.0
 **Quick build:**
 
 ```bash
-go build -o wallet-mpc-node .
+go build -o wallet-mpc-node ./cmd/wallet-mpc-node
 ```
 
 **Cross-compile** (static, `CGO_ENABLED=0` → `output/`):
@@ -124,7 +130,7 @@ chmod +x build_release.sh && ./build_release.sh   # Linux / macOS
 Manual example (linux/amd64):
 
 ```bash
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o output/wallet-mpc-node-linux-amd64 .
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o output/wallet-mpc-node-linux-amd64 ./cmd/wallet-mpc-node
 ```
 
 **Run** (one config per node, e.g. `cli_node0.json`):

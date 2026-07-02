@@ -1,5 +1,5 @@
-// Package sdkconfig 为 walletapi / MPC 节点共用的连接配置（ops.json、cli.json、cli_node*.json）。
-// 仅 JSON 读写，不含 TEE/env；部署层（node、app）在加载后自行注入密钥。
+// Package connect holds broker connection settings shared by MPC nodes and clients.
+// JSON read/write only; TEE/env injection is applied by internal/config at node startup.
 package connect
 
 import (

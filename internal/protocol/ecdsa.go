@@ -1,7 +1,9 @@
 ﻿// ????Alice CGGMP ECDSA ?? WS ?????? keygen/sign ???
-package main
+package protocol
 
 import (
+	"github.com/godaddy-x/wallet-mpc-node/internal/config"
+	"github.com/godaddy-x/wallet-mpc-node/internal/log"
 	"context"
 	"encoding/base64"
 	"encoding/hex"
@@ -144,13 +146,13 @@ func runKeygenNodeECDSA(start dto.CliMPCKeygenStartRes, myNodeID string, wsClien
 	alice.partPub = alg_ecdsa.NewPartialPubCollector(myNodeID, sortedIDs)
 	alice.setPhase("dkg")
 	pm := alice.peerManager()
-	logKeygenf("node=%s task=%s phase=dkg begin\n", myNodeID, start.TaskID)
+	log.Keygenf("node=%s task=%s phase=dkg begin\n", myNodeID, start.TaskID)
 	dkgResult, err := alg_ecdsa.RunDKG(ctx, start.TaskID, myNodeID, sortedIDs, threshold, pm, alice.inbox)
 	if err != nil {
 		return "", err
 	}
 	keyID = alg_ecdsa.KeyIDFromPubXY(dkgResult.PublicKey.GetX(), dkgResult.PublicKey.GetY())
-	logKeygenf("node=%s task=%s phase=dkg done keyID=%s waiting partial pub (%d peers)\n",
+	log.Keygenf("node=%s task=%s phase=dkg done keyID=%s waiting partial pub (%d peers)\n",
 		myNodeID, start.TaskID, keyID, len(sortedIDs)-1)
 
 	alice.setPhase("partpub")
@@ -158,11 +160,11 @@ func runKeygenNodeECDSA(start dto.CliMPCKeygenStartRes, myNodeID string, wsClien
 	if err != nil {
 		return "", err
 	}
-	logKeygenf("node=%s task=%s phase=partpub done\n", myNodeID, start.TaskID)
+	log.Keygenf("node=%s task=%s phase=partpub done\n", myNodeID, start.TaskID)
 	alice.setPhase("idle")
 
 	shareData := alg_ecdsa.BuildNodeShareData(keyID, myNodeID, start.TaskID, sortedIDs, threshold, dkgResult, partialJSON)
-	store := alg_ecdsa.NewFileKeyStore(shardKeysDir)
+	store := alg_ecdsa.NewFileKeyStore(config.ShardKeysDir())
 	if err := store.Save(shareData); err != nil {
 		return "", fmt.Errorf("save ecdsa share: %w", err)
 	}
@@ -193,17 +195,17 @@ func runWarmRefreshNodeECDSA(start dto.CliMPCSignStartRes, myNodeID string, wsCl
 		return err
 	}
 
-	store := alg_ecdsa.NewFileKeyStore(shardKeysDir)
+	store := alg_ecdsa.NewFileKeyStore(config.ShardKeysDir())
 	shareData, err := store.Load(start.KeyID, myNodeID)
 	if err != nil {
 		return fmt.Errorf("load ecdsa share for warm: %w", err)
 	}
 	pm := alice.peerManager()
 	alice.setPhase("refresh")
-	logSignErrf("TRACE_NODE_REFRESH_WARM node=%s task=%s keyID=%s", myNodeID, start.TaskID, start.KeyID)
+	log.SignErrf("TRACE_NODE_REFRESH_WARM node=%s task=%s keyID=%s", myNodeID, start.TaskID, start.KeyID)
 	if err := alg_ecdsa.RunWarmRefresh(ctx, myNodeID, participants, uint32(start.Threshold), shareData, pm, alice.inbox); err != nil {
 		if errors.Is(err, context.Canceled) {
-			logSignErrf("TRACE_NODE_REFRESH_WARM_CANCELED node=%s task=%s", myNodeID, start.TaskID)
+			log.SignErrf("TRACE_NODE_REFRESH_WARM_CANCELED node=%s task=%s", myNodeID, start.TaskID)
 		}
 		alg_ecdsa.DefaultSignMaterialPool.MarkWarmFailed(
 			alg_ecdsa.MaterialSessionKey(start.KeyID, myNodeID, participants))
@@ -231,7 +233,7 @@ func runSignNodeECDSA(start dto.CliMPCSignStartRes, myNodeID string, wsClient *s
 	lock.Lock()
 	defer lock.Unlock()
 
-	store := alg_ecdsa.NewFileKeyStore(shardKeysDir)
+	store := alg_ecdsa.NewFileKeyStore(config.ShardKeysDir())
 	shareData, err := store.Load(start.KeyID, myNodeID)
 	if err != nil {
 		return "", false, 0, fmt.Errorf("load ecdsa share: %w", err)
@@ -249,7 +251,7 @@ func runSignNodeECDSA(start dto.CliMPCSignStartRes, myNodeID string, wsClient *s
 
 	pm := alice.peerManager()
 	alice.setPhase("sign")
-	logSignErrf("TRACE_NODE_SIGN_PHASE node=%s task=%s phase=sign-only begin", myNodeID, start.TaskID)
+	log.SignErrf("TRACE_NODE_SIGN_PHASE node=%s task=%s phase=sign-only begin", myNodeID, start.TaskID)
 	out, err := alg_ecdsa.RunSignSession(
 		ctx,
 		start.TaskID,

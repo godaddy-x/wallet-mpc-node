@@ -13,7 +13,7 @@ build_one() {
   echo ""
   echo "--- build ${goos}/${goarch} ---"
   CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
-    go build -trimpath -installsuffix cgo -ldflags="$LDFLAGS" -o "$OUT/$out_name" .
+    go build -trimpath -installsuffix cgo -ldflags="$LDFLAGS" -o "$OUT/$out_name" ./cmd/wallet-mpc-node
 }
 
 build_one linux amd64 wallet-mpc-node-linux-amd64

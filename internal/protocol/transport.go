@@ -1,15 +1,16 @@
-﻿package main
+package protocol
 
 import (
 	"fmt"
+	"github.com/godaddy-x/wallet-mpc-node/internal/tempkey"
 	"strings"
 	"sync"
 
 	ecc "github.com/godaddy-x/eccrypto"
 	"github.com/godaddy-x/freego/utils"
 	"github.com/godaddy-x/freego/utils/sdk"
-	"github.com/godaddy-x/wallet-mpc-node/mpc"
 	"github.com/godaddy-x/wallet-mpc-node/dto"
+	"github.com/godaddy-x/wallet-mpc-node/mpc"
 )
 
 var mpcKeySessionLocks sync.Map // keyID|participants -> *sync.Mutex
@@ -46,7 +47,7 @@ func sendMPCProtocolWire(wsClient *sdk.SocketSDK, taskID, module string, myIndex
 	if err != nil {
 		return err
 	}
-	publicKey, err := getTempPublicKey(module, targetNodeID, taskID)
+	publicKey, err := tempkey.PeerPublicKey(module, targetNodeID, taskID)
 	if err != nil {
 		return err
 	}

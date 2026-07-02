@@ -1,11 +1,14 @@
-﻿// 本文件：节点侧 MPC Keygen 处理（HandleMpcKeygenStart、DeliverMpcKeygenMsg、早期消息缓存与 TSS 协议执行）。
-package main
+// 本文件：节点侧 MPC Keygen 处理（HandleKeygenStart、DeliverKeygenMsg、早期消息缓存与 TSS 协议执行）。
+package protocol
 
 import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/godaddy-x/wallet-mpc-node/internal/config"
+	"github.com/godaddy-x/wallet-mpc-node/internal/log"
+	"github.com/godaddy-x/wallet-mpc-node/internal/tempkey"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -13,18 +16,18 @@ import (
 	ecc "github.com/godaddy-x/eccrypto"
 	"github.com/godaddy-x/freego/utils"
 	"github.com/godaddy-x/freego/utils/sdk"
-	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/godaddy-x/wallet-mpc-node/dto"
 	"github.com/godaddy-x/wallet-mpc-node/mpc"
 	"github.com/godaddy-x/wallet-mpc-node/mpc/alg_ecdsa"
 	"github.com/godaddy-x/wallet-mpc-node/mpc/alg_ed25519"
-	"github.com/godaddy-x/wallet-mpc-node/dto"
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 // ============ 新增：早期消息缓存 ============
 var (
 	earlyKeygenMessages   = make(map[string]earlyKeygenBucket) // key = taskID|myNodeID
 	earlyKeygenMessagesMu sync.Mutex
-	maxEarlyMessages      = mpcTssRecvChBuf // 与 recvCh 同级，避免早期丢关键消息
+	maxEarlyMessages      = mpcTssRecvChBuf  // 与 recvCh 同级，避免早期丢关键消息
 	earlyMsgTTL           = 15 * time.Minute // 覆盖约 10 分钟 keygen + 余量
 )
 
@@ -114,7 +117,7 @@ func (s *keygenSession) notifyPartyReady() {
 
 func (s *keygenSession) enqueue(item recvItem) bool {
 	return enqueueRecvItem(s.recvCh, &s.closed, &s.mu, func() {
-		logKeygenf("Deliver: recvCh full, still waiting fromIndex=%d task=%s\n",
+		log.Keygenf("Deliver: recvCh full, still waiting fromIndex=%d task=%s\n",
 			item.FromIndex, s.router.taskID)
 	}, item)
 }
@@ -179,7 +182,7 @@ func registerKeygenSession(taskID, nodeID string, s *keygenSession) {
 	old := keygenSessions[key]
 	if old != nil && old != s {
 		old.close()
-		logKeygenf("registerKeygenSession: replaced stale session task=%s node=%s old=%p new=%p\n",
+		log.Keygenf("registerKeygenSession: replaced stale session task=%s node=%s old=%p new=%p\n",
 			taskID, nodeID, old, s)
 	}
 	keygenSessions[key] = s
@@ -188,9 +191,9 @@ func registerKeygenSession(taskID, nodeID string, s *keygenSession) {
 	// Step 3: 回放早期消息
 	for _, item := range replayItems {
 		if !s.enqueue(item) {
-			logKeygenf("replay early msg failed (session closed) task=%s node=%s\n", taskID, nodeID)
+			log.Keygenf("replay early msg failed (session closed) task=%s node=%s\n", taskID, nodeID)
 		} else {
-			logKeygenf("replayed early msg task=%s node=%s fromIndex=%d\n", taskID, nodeID, item.FromIndex)
+			log.Keygenf("replayed early msg task=%s node=%s fromIndex=%d\n", taskID, nodeID, item.FromIndex)
 		}
 	}
 }
@@ -203,7 +206,7 @@ func unregisterKeygenSession(taskID, nodeID string, s *keygenSession) bool {
 	cur := keygenSessions[key]
 	if cur != s {
 		keygenSessionsMu.Unlock()
-		logKeygenf("unregisterKeygenSession: stale skip task=%s node=%s want=%p cur=%p\n",
+		log.Keygenf("unregisterKeygenSession: stale skip task=%s node=%s want=%p cur=%p\n",
 			taskID, nodeID, s, cur)
 		return false
 	}
@@ -237,7 +240,7 @@ func getKeygenSession(taskID, nodeID string) *keygenSession {
 
 // ============ 消息投递逻辑（不变） ============
 func runKeygenDelivery(s *keygenSession) {
-	logKeygenf("task=%s myIndex=%d delivery goroutine started\n", s.router.taskID, s.router.myIndex)
+	log.Keygenf("task=%s myIndex=%d delivery goroutine started\n", s.router.taskID, s.router.myIndex)
 
 	var earlyMsgs []recvItem
 
@@ -246,17 +249,17 @@ func runKeygenDelivery(s *keygenSession) {
 			if trigger != nil {
 				if len(earlyMsgs) < maxEarlyMessages {
 					earlyMsgs = append(earlyMsgs, *trigger)
-					logKeygenf("task=%s cached early msg fromIndex=%d (total=%d)\n",
+					log.Keygenf("task=%s cached early msg fromIndex=%d (total=%d)\n",
 						s.router.taskID, trigger.FromIndex, len(earlyMsgs))
 				} else {
-					logKeygenf("task=%s dropped early msg (buffer full) fromIndex=%d\n",
+					log.Keygenf("task=%s dropped early msg (buffer full) fromIndex=%d\n",
 						s.router.taskID, trigger.FromIndex)
 				}
 			}
 			return
 		}
 		if n := len(earlyMsgs); n > 0 {
-			logKeygenf("task=%s flushing %d early msgs (party ready)\n", s.router.taskID, n)
+			log.Keygenf("task=%s flushing %d early msgs (party ready)\n", s.router.taskID, n)
 			for _, early := range earlyMsgs {
 				processMessage(s, early)
 			}
@@ -286,7 +289,7 @@ func runKeygenDelivery(s *keygenSession) {
 func processMessage(s *keygenSession, item recvItem) {
 	wireB64 := base64.StdEncoding.EncodeToString(item.WireBytes)
 	if isKeygenMsgDuplicate(s.router.taskID, s.router.subject, item.FromIndex, item.IsBroadcast, wireB64) {
-		logKeygenf("Deliver: dedup skip at process task=%s node=%s fromIndex=%d\n",
+		log.Keygenf("Deliver: dedup skip at process task=%s node=%s fromIndex=%d\n",
 			s.router.taskID, s.router.subject, item.FromIndex)
 		return
 	}
@@ -306,8 +309,8 @@ func processMessage(s *keygenSession, item recvItem) {
 	atomic.AddUint32(&s.recvCount, 1)
 }
 
-// ============ DeliverMpcKeygenMsg（改造：支持缓存早期消息） ============
-func DeliverMpcKeygenMsg(wsClient *sdk.SocketSDK, myNodeID, router string, body []byte) error {
+// ============ DeliverKeygenMsg（改造：支持缓存早期消息） ============
+func DeliverKeygenMsg(wsClient *sdk.SocketSDK, myNodeID, router string, body []byte) error {
 	if len(body) == 0 {
 		return nil
 	}
@@ -315,7 +318,7 @@ func DeliverMpcKeygenMsg(wsClient *sdk.SocketSDK, myNodeID, router string, body 
 	if err := utils.JsonUnmarshal(body, &decrypt); err != nil {
 		return err
 	}
-	prk, err := getTempDecapsKey("keygen", myNodeID, decrypt.TaskID)
+	prk, err := tempkey.DecapsKey("keygen", myNodeID, decrypt.TaskID)
 	if err != nil {
 		return err
 	}
@@ -328,7 +331,7 @@ func DeliverMpcKeygenMsg(wsClient *sdk.SocketSDK, myNodeID, router string, body 
 	}
 	var res dto.CliMPCKeygenMsgRes
 	if err := utils.JsonUnmarshal(msg, &res); err != nil {
-		logKeygenf("Deliver: json error = %v\n", err)
+		log.Keygenf("Deliver: json error = %v\n", err)
 		return err
 	}
 
@@ -340,7 +343,7 @@ func DeliverMpcKeygenMsg(wsClient *sdk.SocketSDK, myNodeID, router string, body 
 		// ❗ Session 不存在：缓存为早期消息
 		wireBytes, err := base64.StdEncoding.DecodeString(res.WireBytesBase64)
 		if err != nil {
-			logKeygenf("Deliver: base64 decode error = %v\n", err)
+			log.Keygenf("Deliver: base64 decode error = %v\n", err)
 			return err
 		}
 
@@ -349,7 +352,7 @@ func DeliverMpcKeygenMsg(wsClient *sdk.SocketSDK, myNodeID, router string, body 
 		cleanupExpiredEarlyKeygenMessagesLocked(now)
 		if b, exists := earlyKeygenMessages[sessionKey]; exists && len(b.items) >= maxEarlyMessages {
 			earlyKeygenMessagesMu.Unlock()
-			logKeygenf("Deliver: dropped early msg (buffer full) task=%s node=%s\n", taskID, myNodeID)
+			log.Keygenf("Deliver: dropped early msg (buffer full) task=%s node=%s\n", taskID, myNodeID)
 			return nil
 		}
 		item := recvItem{
@@ -365,20 +368,20 @@ func DeliverMpcKeygenMsg(wsClient *sdk.SocketSDK, myNodeID, router string, body 
 		earlyKeygenMessages[sessionKey] = b
 		earlyKeygenMessagesMu.Unlock()
 
-		logKeygenf("Deliver: cached early msg task=%s node=%s fromIndex=%d\n", taskID, myNodeID, res.FromIndex)
+		log.Keygenf("Deliver: cached early msg task=%s node=%s fromIndex=%d\n", taskID, myNodeID, res.FromIndex)
 		return nil
 	}
 
 	// 己方消息不处理
 	if res.FromIndex == s.router.myIndex {
-		logKeygenf("Deliver: dropped (own) task=%s myIndex=%d fromIndex=%d\n",
+		log.Keygenf("Deliver: dropped (own) task=%s myIndex=%d fromIndex=%d\n",
 			taskID, s.router.myIndex, res.FromIndex)
 		return nil
 	}
 
 	wireBytes, err := base64.StdEncoding.DecodeString(res.WireBytesBase64)
 	if err != nil {
-		logKeygenf("Deliver: base64 error = %v\n", err)
+		log.Keygenf("Deliver: base64 error = %v\n", err)
 		return err
 	}
 	item := recvItem{
@@ -387,10 +390,10 @@ func DeliverMpcKeygenMsg(wsClient *sdk.SocketSDK, myNodeID, router string, body 
 		IsBroadcast: res.IsBroadcast,
 	}
 	if !s.enqueue(item) {
-		logKeygenf("Deliver: session already closed for task %s\n", taskID)
+		log.Keygenf("Deliver: session already closed for task %s\n", taskID)
 		return nil
 	}
-	logKeygenf("Deliver: enqueued myIndex=%d fromIndex=%d task=%s\n", s.router.myIndex, res.FromIndex, taskID)
+	log.Keygenf("Deliver: enqueued myIndex=%d fromIndex=%d task=%s\n", s.router.myIndex, res.FromIndex, taskID)
 	return nil
 }
 
@@ -454,7 +457,7 @@ func submitKeygenResultErr(wsClient *sdk.SocketSDK, taskID, nodeID, errMsg strin
 	return nil
 }
 
-func HandleMpcKeygenStart(wsClient *sdk.SocketSDK, myNodeID, router string, body []byte) error {
+func HandleKeygenStart(wsClient *sdk.SocketSDK, myNodeID, router string, body []byte) error {
 	if len(body) == 0 {
 		return nil
 	}
@@ -462,7 +465,7 @@ func HandleMpcKeygenStart(wsClient *sdk.SocketSDK, myNodeID, router string, body
 	if err := utils.JsonUnmarshal(body, &decrypt); err != nil {
 		return err
 	}
-	prk, err := getTempDecapsKey("keygen", myNodeID, decrypt.TaskID)
+	prk, err := tempkey.DecapsKey("keygen", myNodeID, decrypt.TaskID)
 	if err != nil {
 		return err
 	}
@@ -481,20 +484,20 @@ func HandleMpcKeygenStart(wsClient *sdk.SocketSDK, myNodeID, router string, body
 		return errors.New("mpc keygen task expired")
 	}
 
-	if err := refreshKeygenTempPrivateKeyTTL(myNodeID, start.TaskID); err != nil {
-		return errors.New("handleMpcKeygenStart refresh tempPrivateKey: " + err.Error())
+	if err := tempkey.RefreshKeygenPrivateKeyTTL(myNodeID, start.TaskID); err != nil {
+		return errors.New("HandleKeygenStart refresh tempPrivateKey: " + err.Error())
 	}
 
 	for _, v := range start.PublicKeyPair {
 		if v.Subject == myNodeID {
 			continue
 		}
-		if err := putTempPublicKeyFromB64("keygen", v.Subject, start.TaskID, v.PublicKey, keygenTempKeyCacheTTLSeconds); err != nil {
-			return errors.New("handleMpcKeygenStart put tempPublicKey error: " + err.Error())
+		if err := tempkey.PutPeerPublicKey("keygen", v.Subject, start.TaskID, v.PublicKey, tempkey.KeygenCacheTTL); err != nil {
+			return errors.New("HandleKeygenStart put tempPublicKey error: " + err.Error())
 		}
 	}
 
-	logKeygenf("node=%s task=%s start, alg=%s threshold=%d, nodes=%v\n",
+	log.Keygenf("node=%s task=%s start, alg=%s threshold=%d, nodes=%v\n",
 		myNodeID, start.TaskID, start.Algorithm, start.Threshold, start.NodeIDs)
 
 	sortedIDs := mpc.SortedNodeIDs(start.NodeIDs)
@@ -504,7 +507,7 @@ func HandleMpcKeygenStart(wsClient *sdk.SocketSDK, myNodeID, router string, body
 	}
 
 	if !beginKeygenTask(start.TaskID, myNodeID) {
-		logKeygenf("node=%s task=%s duplicate mpcKeygenStart rejected\n", myNodeID, start.TaskID)
+		log.Keygenf("node=%s task=%s duplicate mpcKeygenStart rejected\n", myNodeID, start.TaskID)
 		return errors.New("keygen already in progress for task")
 	}
 
@@ -544,47 +547,44 @@ func HandleMpcKeygenStart(wsClient *sdk.SocketSDK, myNodeID, router string, body
 		defer func() {
 			endKeygenTask(start.TaskID, myNodeID)
 			if unregisterKeygenSession(start.TaskID, myNodeID, session) {
-				_ = keyCache.Del(utils.FNV1a64(utils.AddStr(myNodeID, ":", start.TaskID, ":keygen:tempPrivateKey")))
-				for _, v := range start.NodeIDs {
-					_ = keyCache.Del(tempPublicKeyCacheKey("keygen", v, start.TaskID))
-				}
+				tempkey.ClearKeygenSessionKeys(myNodeID, start.TaskID, start.NodeIDs)
 			}
 		}()
 
 		keyID, err := RunKeygenNodeRealByAlg(start, myNodeID, wsClient, session)
 		if err != nil {
-			logKeygenf("node=%s task=%s failed: %v\n", myNodeID, start.TaskID, err)
+			log.Keygenf("node=%s task=%s failed: %v\n", myNodeID, start.TaskID, err)
 			_ = submitKeygenResultErr(wsClient, start.TaskID, myNodeID, err.Error())
 			return
 		}
 
-		logKeygenf("node=%s task=%s succeeded, keyID=%s, submitting result\n",
+		log.Keygenf("node=%s task=%s succeeded, keyID=%s, submitting result\n",
 			myNodeID, start.TaskID, keyID)
 
-		store := alg_ecdsa.NewFileKeyStore(shardKeysDir)
+		store := alg_ecdsa.NewFileKeyStore(config.ShardKeysDir())
 		if mpc.Algorithm(start.Algorithm) == mpc.AlgEd25519 {
-			fstore := alg_ed25519.NewFileKeyStore(shardKeysDir)
+			fstore := alg_ed25519.NewFileKeyStore(config.ShardKeysDir())
 			shareData, loadErr := fstore.Load(keyID, myNodeID)
 			if loadErr != nil {
-				logKeygenf("node=%s task=%s load share for result failed: %v\n", myNodeID, start.TaskID, loadErr)
+				log.Keygenf("node=%s task=%s load share for result failed: %v\n", myNodeID, start.TaskID, loadErr)
 				_ = submitKeygenResultErr(wsClient, start.TaskID, myNodeID, "load share for result failed: "+loadErr.Error())
 				return
 			}
 			rootPub := rootPubHexFromFrostShareData(shareData)
 			if err := submitKeygenResult(wsClient, start.TaskID, myNodeID, keyID, rootPub); err != nil {
-				logKeygenf("node=%s task=%s submit result failed: %v\n", myNodeID, start.TaskID, err)
+				log.Keygenf("node=%s task=%s submit result failed: %v\n", myNodeID, start.TaskID, err)
 				_ = submitKeygenResultErr(wsClient, start.TaskID, myNodeID, "submit result failed: "+err.Error())
 			}
 			return
 		}
 		shareData, loadErr := store.Load(keyID, myNodeID)
 		if loadErr != nil {
-			logKeygenf("node=%s task=%s load share for result failed: %v\n", myNodeID, start.TaskID, loadErr)
+			log.Keygenf("node=%s task=%s load share for result failed: %v\n", myNodeID, start.TaskID, loadErr)
 			_ = submitKeygenResultErr(wsClient, start.TaskID, myNodeID, "load share for result failed: "+loadErr.Error())
 			return
 		}
 		if err := submitKeygenResult(wsClient, start.TaskID, myNodeID, keyID, rootPubHexFromShareData(shareData)); err != nil {
-			logKeygenf("node=%s task=%s submit result failed: %v\n", myNodeID, start.TaskID, err)
+			log.Keygenf("node=%s task=%s submit result failed: %v\n", myNodeID, start.TaskID, err)
 			_ = submitKeygenResultErr(wsClient, start.TaskID, myNodeID, "submit result failed: "+err.Error())
 		}
 	}()

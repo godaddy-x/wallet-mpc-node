@@ -1,5 +1,5 @@
-﻿// 弱机/线上环境：TSS 协议消息的缓冲、WS 超时与 recvCh 背压参数。
-package main
+// 弱机/线上环境：TSS 协议消息的缓冲、WS 超时与 recvCh 背压参数。
+package protocol
 
 import (
 	"errors"

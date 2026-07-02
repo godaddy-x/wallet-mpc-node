@@ -100,7 +100,7 @@ git push origin v1.0.0
 **快速建置：**
 
 ```bash
-go build -o wallet-mpc-node .
+go build -o wallet-mpc-node ./cmd/wallet-mpc-node
 ```
 
 **交叉編譯**（靜態連結 `CGO_ENABLED=0`，產物在 `output/`）：
@@ -124,7 +124,7 @@ chmod +x build_release.sh && ./build_release.sh   # Linux / macOS
 手動範例（linux/amd64）：
 
 ```bash
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o output/wallet-mpc-node-linux-amd64 .
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o output/wallet-mpc-node-linux-amd64 ./cmd/wallet-mpc-node
 ```
 
 **執行**（每節點一份設定，如 `cli_node0.json`）：

@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"os"
@@ -82,7 +82,7 @@ func TestRunGenKeyEncrypted(t *testing.T) {
 	outDir := filepath.Join(t.TempDir(), crypto.Plan2DefaultProvisionDir)
 	t.Setenv(crypto.Plan2WrapKeyEnv, "test-wrap-key")
 
-	result, err := runGenKey(false, outDir)
+	result, err := RunGenKey(false, outDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestRunGenKeyPlaintext(t *testing.T) {
 	outDir := filepath.Join(t.TempDir(), crypto.Plan2DefaultProvisionDir)
 	t.Setenv(crypto.Plan2WrapKeyEnv, "")
 
-	result, err := runGenKey(false, outDir)
+	result, err := RunGenKey(false, outDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func TestRunGenKeyEncRequiresWrapKey(t *testing.T) {
 	outDir := filepath.Join(t.TempDir(), "no-output")
 	t.Setenv(crypto.Plan2WrapKeyEnv, "")
 
-	if _, err := runGenKey(true, outDir); err == nil {
+	if _, err := RunGenKey(true, outDir); err == nil {
 		t.Fatal("expected error when -enc without MPC_PLAN2_WRAP_KEY")
 	}
 }

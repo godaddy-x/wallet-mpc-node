@@ -1,7 +1,9 @@
-﻿// 本文件：节点侧 MPC Sign 处理（HandleMpcSignStart、DeliverMpcSignMsg、早期消息缓存与 TSS 签名协议）。
-package main
+﻿// 本文件：节点侧 MPC Sign 处理（HandleSignStart、DeliverSignMsg、早期消息缓存与 TSS 签名协议）。
+package protocol
 
 import (
+	"github.com/godaddy-x/wallet-mpc-node/internal/log"
+	"github.com/godaddy-x/wallet-mpc-node/internal/tempkey"
 	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
@@ -114,12 +116,12 @@ func submitSignResultWithRetry(
 	backoff := []time.Duration{100 * time.Millisecond, 300 * time.Millisecond, 800 * time.Millisecond}
 	var lastErr error
 	for i := 1; i <= maxAttempts; i++ {
-		logSignErrf("TRACE_NODE_SUBMIT_SIGN_RESULT_BEGIN node=%s task=%s attempt=%d/%d hasErr=%t sigLen=%d",
+		log.SignErrf("TRACE_NODE_SUBMIT_SIGN_RESULT_BEGIN node=%s task=%s attempt=%d/%d hasErr=%t sigLen=%d",
 			myNodeID, req.TaskID, i, maxAttempts, req.Err != "", len(req.SignatureHex))
 		var res dto.CliMPCSignResultRes
 		err := wsClient.SendWebSocketMessage("/ws/mpcSignResult", req, &res, true, true, 30)
 		if err == nil && res.OK {
-			logSignErrf("TRACE_NODE_SUBMIT_SIGN_RESULT_OK node=%s task=%s attempt=%d/%d hasErr=%t sigLen=%d",
+			log.SignErrf("TRACE_NODE_SUBMIT_SIGN_RESULT_OK node=%s task=%s attempt=%d/%d hasErr=%t sigLen=%d",
 				myNodeID, req.TaskID, i, maxAttempts, req.Err != "", len(req.SignatureHex))
 			return nil
 		}
@@ -128,7 +130,7 @@ func submitSignResultWithRetry(
 		} else if !res.OK {
 			lastErr = errors.New("server returned OK=false for mpcSignResult")
 		}
-		logSignErrf("TRACE_NODE_SUBMIT_SIGN_RESULT_FAILED node=%s task=%s attempt=%d/%d hasErr=%t sigLen=%d err=%v",
+		log.SignErrf("TRACE_NODE_SUBMIT_SIGN_RESULT_FAILED node=%s task=%s attempt=%d/%d hasErr=%t sigLen=%d err=%v",
 			myNodeID, req.TaskID, i, maxAttempts, req.Err != "", len(req.SignatureHex), lastErr)
 		if i < maxAttempts {
 			sleep := backoff[i-1]
@@ -145,8 +147,8 @@ func sendSignProtocolMsgWithRetry(wsClient *sdk.SocketSDK, req *dto.CliMPCEncryp
 	return sendMpcProtocolMsgWithRetry(wsClient, "/ws/mpcSignMsg", req, maxAttempts)
 }
 
-// HandleMpcSignStart 处理服务端下发的 mpcSignStart Push。
-func HandleMpcSignStart(wsClient *sdk.SocketSDK, myNodeID, router string, body []byte) error {
+// HandleSignStart 处理服务端下发的 mpcSignStart Push。
+func HandleSignStart(wsClient *sdk.SocketSDK, myNodeID, router string, body []byte) error {
 	if len(body) == 0 {
 		return nil
 	}
@@ -154,7 +156,7 @@ func HandleMpcSignStart(wsClient *sdk.SocketSDK, myNodeID, router string, body [
 	if err := utils.JsonUnmarshal(body, &decrypt); err != nil {
 		return err
 	}
-	prk, err := getTempDecapsKey("sign", myNodeID, decrypt.TaskID)
+	prk, err := tempkey.DecapsKey("sign", myNodeID, decrypt.TaskID)
 	if err != nil {
 		return err
 	}
@@ -173,8 +175,8 @@ func HandleMpcSignStart(wsClient *sdk.SocketSDK, myNodeID, router string, body [
 		return errors.New("mpc sign task expired")
 	}
 
-	if err := refreshSignTempPrivateKeyTTL(myNodeID, start.TaskID); err != nil {
-		return errors.New("handleMpcSignStart refresh tempPrivateKey: " + err.Error())
+	if err := tempkey.RefreshSignPrivateKeyTTL(myNodeID, start.TaskID); err != nil {
+		return errors.New("HandleSignStart refresh tempPrivateKey: " + err.Error())
 	}
 
 	for _, v := range start.PublicKeyPair {
@@ -182,16 +184,16 @@ func HandleMpcSignStart(wsClient *sdk.SocketSDK, myNodeID, router string, body [
 			continue
 		}
 		if strings.TrimSpace(v.PublicKey) == "" {
-			logSignErrf("TRACE_NODE_SIGN_START_SKIP_EMPTY_PUBKEY node=%s task=%s peer=%s",
+			log.SignErrf("TRACE_NODE_SIGN_START_SKIP_EMPTY_PUBKEY node=%s task=%s peer=%s",
 				myNodeID, start.TaskID, v.Subject)
 			continue
 		}
-		if err := putTempPublicKeyFromB64("sign", v.Subject, start.TaskID, v.PublicKey, signTempKeyCacheTTLSeconds); err != nil {
-			return errors.New("handleMpcSignStart put tempPublicKey error: " + err.Error())
+		if err := tempkey.PutPeerPublicKey("sign", v.Subject, start.TaskID, v.PublicKey, tempkey.SignCacheTTL); err != nil {
+			return errors.New("HandleSignStart put tempPublicKey error: " + err.Error())
 		}
 	}
 
-	logSignErrf("TRACE_NODE_SIGN_START_RECEIVED node=%s task=%s alg=%s keyID=%s threshold=%d warmOnly=%t allNodes=%v signNodes=%v",
+	log.SignErrf("TRACE_NODE_SIGN_START_RECEIVED node=%s task=%s alg=%s keyID=%s threshold=%d warmOnly=%t allNodes=%v signNodes=%v",
 		myNodeID, start.TaskID, start.Algorithm, start.KeyID, start.Threshold, start.RefreshWarmOnly, start.AllNodeIDs, start.SignNodeIDs)
 
 	if start.RefreshWarmOnly && mpc.Algorithm(start.Algorithm) == mpc.AlgEd25519 {
@@ -208,7 +210,7 @@ func HandleMpcSignStart(wsClient *sdk.SocketSDK, myNodeID, router string, body [
 	}
 
 	if !beginSignTask(start.TaskID, myNodeID) {
-		logSignErrf("TRACE_NODE_SIGN_START_DUPLICATE node=%s task=%s", myNodeID, start.TaskID)
+		log.SignErrf("TRACE_NODE_SIGN_START_DUPLICATE node=%s task=%s", myNodeID, start.TaskID)
 		return errors.New("sign already in progress for task")
 	}
 
@@ -247,7 +249,7 @@ func HandleMpcSignStart(wsClient *sdk.SocketSDK, myNodeID, router string, body [
 		defer func() {
 			endSignTask(start.TaskID, myNodeID)
 			if unregisterSignSession(start.TaskID, myNodeID, session) {
-				clearSignTempKeys(myNodeID, start.TaskID, start.AllNodeIDs)
+				tempkey.ClearSignSessionKeys(myNodeID, start.TaskID, start.AllNodeIDs)
 			}
 		}()
 
@@ -262,19 +264,19 @@ func HandleMpcSignStart(wsClient *sdk.SocketSDK, myNodeID, router string, body [
 			}
 			if warmErr != nil {
 				req.Err = warmErr.Error()
-				logSignErrf("TRACE_NODE_REFRESH_WARM_FAILED node=%s task=%s err=%v", myNodeID, start.TaskID, warmErr)
+				log.SignErrf("TRACE_NODE_REFRESH_WARM_FAILED node=%s task=%s err=%v", myNodeID, start.TaskID, warmErr)
 			} else {
-				logSignErrf("TRACE_NODE_REFRESH_WARM_OK node=%s task=%s keyID=%s", myNodeID, start.TaskID, start.KeyID)
+				log.SignErrf("TRACE_NODE_REFRESH_WARM_OK node=%s task=%s keyID=%s", myNodeID, start.TaskID, start.KeyID)
 			}
 			if submitErr := submitSignResultWithRetry(wsClient, myNodeID, req, 3); submitErr != nil {
-				logSignErrf("TRACE_NODE_SUBMIT_WARM_RESULT_FAILED node=%s task=%s err=%v", myNodeID, start.TaskID, submitErr)
+				log.SignErrf("TRACE_NODE_SUBMIT_WARM_RESULT_FAILED node=%s task=%s err=%v", myNodeID, start.TaskID, submitErr)
 			}
 			return
 		}
 
 		sigHex, needRefreshWarm, materialUseCount, err := RunSignNodeRealByAlg(start, myNodeID, wsClient, session)
 		if err != nil {
-			logSignErrf("TRACE_NODE_SIGN_FAILED node=%s task=%s err=%v", myNodeID, start.TaskID, err)
+			log.SignErrf("TRACE_NODE_SIGN_FAILED node=%s task=%s err=%v", myNodeID, start.TaskID, err)
 			req := &dto.CliMPCSignResultReq{
 				TaskID: start.TaskID,
 				NodeID: nodeID,
@@ -282,12 +284,12 @@ func HandleMpcSignStart(wsClient *sdk.SocketSDK, myNodeID, router string, body [
 				Err:    err.Error(),
 			}
 			if submitErr := submitSignResultWithRetry(wsClient, myNodeID, req, 3); submitErr != nil {
-				logSignErrf("TRACE_NODE_SUBMIT_ERROR_RESULT_FINAL_FAILED node=%s task=%s err=%v", myNodeID, start.TaskID, submitErr)
+				log.SignErrf("TRACE_NODE_SUBMIT_ERROR_RESULT_FINAL_FAILED node=%s task=%s err=%v", myNodeID, start.TaskID, submitErr)
 			}
 			return
 		}
 
-		logSignErrf("TRACE_NODE_SIGN_SUCCEEDED node=%s task=%s keyID=%s sigLen=%d needRefreshWarm=%t useCount=%d",
+		log.SignErrf("TRACE_NODE_SIGN_SUCCEEDED node=%s task=%s keyID=%s sigLen=%d needRefreshWarm=%t useCount=%d",
 			myNodeID, start.TaskID, start.KeyID, len(sigHex), needRefreshWarm, materialUseCount)
 		req := &dto.CliMPCSignResultReq{
 			TaskID:           start.TaskID,
@@ -298,7 +300,7 @@ func HandleMpcSignStart(wsClient *sdk.SocketSDK, myNodeID, router string, body [
 			MaterialUseCount: materialUseCount,
 		}
 		if err := submitSignResultWithRetry(wsClient, myNodeID, req, 3); err != nil {
-			logSignErrf("TRACE_NODE_SUBMIT_SIGN_RESULT_FINAL_FAILED node=%s task=%s err=%v", myNodeID, start.TaskID, err)
+			log.SignErrf("TRACE_NODE_SUBMIT_SIGN_RESULT_FINAL_FAILED node=%s task=%s err=%v", myNodeID, start.TaskID, err)
 		}
 	}()
 
@@ -335,7 +337,7 @@ func (s *signSession) notifyPartyReady() {
 
 func (s *signSession) enqueue(item recvItem) bool {
 	return enqueueRecvItem(s.recvCh, &s.closed, &s.mu, func() {
-		logSignErrf("TRACE_NODE_SIGN_RECVCH_WAIT node=%s task=%s fromIndex=%d (recvCh full, still waiting)",
+		log.SignErrf("TRACE_NODE_SIGN_RECVCH_WAIT node=%s task=%s fromIndex=%d (recvCh full, still waiting)",
 			s.router.subject, s.router.taskID, item.FromIndex)
 	}, item)
 }
@@ -396,16 +398,16 @@ func registerSignSession(taskID, nodeID string, s *signSession) {
 	old := signSessions[key]
 	if old != nil && old != s {
 		old.close()
-		logSignf("registerSignSession: replaced stale session task=%s node=%s old=%p new=%p\n",
+		log.Signf("registerSignSession: replaced stale session task=%s node=%s old=%p new=%p\n",
 			taskID, nodeID, old, s)
 	}
 	signSessions[key] = s
-	logSignf("registerSignSession: task=%s node=%s replay=%d\n", taskID, nodeID, len(replayItems))
+	log.Signf("registerSignSession: task=%s node=%s replay=%d\n", taskID, nodeID, len(replayItems))
 	signSessionsMu.Unlock()
 
 	for _, item := range replayItems {
 		if !s.enqueue(item) {
-			logSignf("replay early msg failed task=%s node=%s\n", taskID, nodeID)
+			log.Signf("replay early msg failed task=%s node=%s\n", taskID, nodeID)
 		}
 	}
 }
@@ -417,7 +419,7 @@ func unregisterSignSession(taskID, nodeID string, s *signSession) bool {
 	cur := signSessions[key]
 	if cur != s {
 		signSessionsMu.Unlock()
-		logSignf("unregisterSignSession: stale skip task=%s node=%s want=%p cur=%p\n",
+		log.Signf("unregisterSignSession: stale skip task=%s node=%s want=%p cur=%p\n",
 			taskID, nodeID, s, cur)
 		return false
 	}
@@ -428,7 +430,7 @@ func unregisterSignSession(taskID, nodeID string, s *signSession) bool {
 	delete(earlySignMessages, key)
 	earlySignMessagesMu.Unlock()
 
-	logSignf("unregisterSignSession: task=%s node=%s deleted=%p\n", taskID, nodeID, s)
+	log.Signf("unregisterSignSession: task=%s node=%s deleted=%p\n", taskID, nodeID, s)
 	return true
 }
 
@@ -454,7 +456,7 @@ func getSignSession(taskID, nodeID string) *signSession {
 }
 
 func runSignDelivery(s *signSession) {
-	logSignf("task=%s myIndex=%d delivery started\n", s.router.taskID, s.router.myIndex)
+	log.Signf("task=%s myIndex=%d delivery started\n", s.router.taskID, s.router.myIndex)
 	var earlyMsgs []recvItem
 
 	flushEarly := func(trigger *recvItem) {
@@ -462,17 +464,17 @@ func runSignDelivery(s *signSession) {
 			if trigger != nil {
 				if len(earlyMsgs) < maxEarlySignMsgs {
 					earlyMsgs = append(earlyMsgs, *trigger)
-					logSignf("task=%s cached early msg fromIndex=%d (total=%d)\n",
+					log.Signf("task=%s cached early msg fromIndex=%d (total=%d)\n",
 						s.router.taskID, trigger.FromIndex, len(earlyMsgs))
 				} else {
-					logSignf("task=%s dropped early msg (buffer full) fromIndex=%d\n",
+					log.Signf("task=%s dropped early msg (buffer full) fromIndex=%d\n",
 						s.router.taskID, trigger.FromIndex)
 				}
 			}
 			return
 		}
 		if n := len(earlyMsgs); n > 0 {
-			logSignErrf("TRACE_NODE_SIGN_FLUSH_EARLY node=%s task=%s count=%d",
+			log.SignErrf("TRACE_NODE_SIGN_FLUSH_EARLY node=%s task=%s count=%d",
 				s.router.subject, s.router.taskID, n)
 			for _, early := range earlyMsgs {
 				processSignMessage(s, early)
@@ -503,7 +505,7 @@ func runSignDelivery(s *signSession) {
 func processSignMessage(s *signSession, item recvItem) {
 	wireB64 := base64.StdEncoding.EncodeToString(item.WireBytes)
 	if isSignMsgDuplicate(s.router.taskID, s.router.subject, item.FromIndex, item.IsBroadcast, wireB64) {
-		logSignErrf("TRACE_NODE_SIGN_DEDUP_SKIP node=%s task=%s fromIndex=%d broadcast=%v",
+		log.SignErrf("TRACE_NODE_SIGN_DEDUP_SKIP node=%s task=%s fromIndex=%d broadcast=%v",
 			s.router.subject, s.router.taskID, item.FromIndex, item.IsBroadcast)
 		return
 	}
@@ -516,7 +518,7 @@ func processSignMessage(s *signSession, item recvItem) {
 		err = fmt.Errorf("sign session missing wire router")
 	}
 	if err != nil && err.Error() != "Error is nil" {
-		logSignErrf("TRACE_NODE_SIGN_UPDATE_FAILED node=%s task=%s fromIndex=%d err=%v (not deduped, retry allowed)",
+		log.SignErrf("TRACE_NODE_SIGN_UPDATE_FAILED node=%s task=%s fromIndex=%d err=%v (not deduped, retry allowed)",
 			s.router.subject, s.router.taskID, item.FromIndex, err)
 		deliverSessionErr(s.errCh, err)
 		return
@@ -525,8 +527,8 @@ func processSignMessage(s *signSession, item recvItem) {
 	atomic.AddUint32(&s.recvCount, 1)
 }
 
-// DeliverMpcSignMsg 由 Push 回调调用。
-func DeliverMpcSignMsg(wsClient *sdk.SocketSDK, myNodeID, router string, body []byte) error {
+// DeliverSignMsg 由 Push 回调调用。
+func DeliverSignMsg(wsClient *sdk.SocketSDK, myNodeID, router string, body []byte) error {
 	if len(body) == 0 {
 		return nil
 	}
@@ -534,18 +536,18 @@ func DeliverMpcSignMsg(wsClient *sdk.SocketSDK, myNodeID, router string, body []
 	if err := utils.JsonUnmarshal(body, &decrypt); err != nil {
 		return err
 	}
-	prk, err := getTempDecapsKey("sign", myNodeID, decrypt.TaskID)
+	prk, err := tempkey.DecapsKey("sign", myNodeID, decrypt.TaskID)
 	if err != nil {
 		return err
 	}
 	if prk == nil {
-		logSignErrf("TRACE_NODE_SIGN_DELIVER_NO_DECAPS_KEY node=%s task=%s (temp key expired or missing?)",
+		log.SignErrf("TRACE_NODE_SIGN_DELIVER_NO_DECAPS_KEY node=%s task=%s (temp key expired or missing?)",
 			myNodeID, decrypt.TaskID)
 		return errors.New("temp decaps key is nil")
 	}
 	msg, err := ecc.DecryptMLKEM1024(prk, utils.Base64Decode(decrypt.Data), utils.Str2Bytes(utils.AddStr(decrypt.TaskID, "|", myNodeID, "|mpcSignMsg")), nil)
 	if err != nil {
-		logSignErrf("TRACE_NODE_SIGN_DELIVER_DECRYPT_FAILED node=%s task=%s err=%v", myNodeID, decrypt.TaskID, err)
+		log.SignErrf("TRACE_NODE_SIGN_DELIVER_DECRYPT_FAILED node=%s task=%s err=%v", myNodeID, decrypt.TaskID, err)
 		return err
 	}
 	var res dto.CliMPCSignMsgRes
@@ -598,7 +600,7 @@ func DeliverMpcSignMsg(wsClient *sdk.SocketSDK, myNodeID, router string, body []
 	}
 	item := recvItem{WireBytes: wireBytes, FromIndex: res.FromIndex, IsBroadcast: res.IsBroadcast}
 	if !s.enqueue(item) {
-		logSignErrf("TRACE_NODE_SIGN_DELIVER_ENQUEUE_SKIP node=%s task=%s fromIndex=%d (session closed?)",
+		log.SignErrf("TRACE_NODE_SIGN_DELIVER_ENQUEUE_SKIP node=%s task=%s fromIndex=%d (session closed?)",
 			myNodeID, res.TaskID, res.FromIndex)
 		return nil
 	}

@@ -1,4 +1,4 @@
-﻿package main
+package protocol
 
 import (
 	"sync"
@@ -13,7 +13,6 @@ var (
 	aliceLogBridgePrev sirLog.Handler
 )
 
-// enableAliceProtocolTrace 将 Alice/sirius 的 Warn+ 日志桥接到 zlog，并写入 alg_ecdsa 失败追踪。
 func enableAliceProtocolTrace() {
 	aliceLogBridgeOnce.Do(func() {
 		bridge := sirLog.New("mpc-alice")
