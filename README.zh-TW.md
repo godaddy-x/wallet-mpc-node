@@ -25,7 +25,7 @@
 
 ## 簽章演算法
 
-Keygen / Sign 由 broker 工作階段 DTO 的 **`algorithm`** 欄位路由（`ecdsa` | `ed25519`）：
+Keygen / Sign 由 broker 工作階段類型的 **`algorithm`** 欄位路由（`ecdsa` | `ed25519`）：
 
 | 識別 | 鏈上演算法 | 門檻協定 | 程式碼 |
 |------|------------|----------|--------|
@@ -47,7 +47,7 @@ Keygen / Sign 由 broker 工作階段 DTO 的 **`algorithm`** 欄位路由（`ec
 ├── mpc_keygen.go, mpc_sign.go       # 依 algorithm 路由
 ├── mpc_ecdsa.go, mpc_ed25519.go     # CGGMP / FROST 流程
 ├── connect/                         # WebSocket SDK
-├── dto/                             # 協定 DTO（broker ↔ node）
+├── types/                             # 協定類型（broker ↔ node）
 ├── examples/                        # cli_node*.example.json
 ├── pqc-keypair.md                   # PQC（ML-DSA-87）金鑰對產生與安全說明
 ├── mpc/

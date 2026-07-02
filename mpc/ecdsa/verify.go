@@ -1,4 +1,4 @@
-﻿// Package ecdsa 提供链上 ECDSA 验签工具（与 CGGMP 签名输出格式一致）。
+// Package ecdsa 提供链上 ECDSA 验签工具（与 CGGMP 签名输出格式一致）。
 package ecdsa
 
 import (

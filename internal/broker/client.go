@@ -9,9 +9,9 @@ import (
 	"github.com/godaddy-x/freego/utils/sdk"
 	"github.com/godaddy-x/freego/zlog"
 	"github.com/godaddy-x/wallet-mpc-node/connect"
-	"github.com/godaddy-x/wallet-mpc-node/dto"
 	"github.com/godaddy-x/wallet-mpc-node/internal/protocol"
 	"github.com/godaddy-x/wallet-mpc-node/internal/tempkey"
+	"github.com/godaddy-x/wallet-mpc-node/types"
 )
 
 func nodeLoginAuthToken(cliConfig connect.SdkConfig) (sdk.AuthToken, error) {
@@ -26,7 +26,7 @@ func nodeLoginAuthToken(cliConfig connect.SdkConfig) (sdk.AuthToken, error) {
 	}
 	defer loginSdk.DisconnectWebSocket()
 
-	req := &dto.CliPlan2LoginReq{Source: nodeID}
+	req := &types.CliPlan2LoginReq{Source: nodeID}
 	resp := sdk.AuthToken{}
 	keyPath := strings.TrimSpace(cliConfig.KeyPath)
 	if keyPath == "" {

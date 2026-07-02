@@ -1,14 +1,14 @@
-﻿// 本文件：节点侧 MPC Sign 处理（HandleSignStart、DeliverSignMsg、早期消息缓存与 TSS 签名协议）。
+// 本文件：节点侧 MPC Sign 处理（HandleSignStart、DeliverSignMsg、早期消息缓存与 TSS 签名协议）。
 package protocol
 
 import (
-	"github.com/godaddy-x/wallet-mpc-node/internal/log"
-	"github.com/godaddy-x/wallet-mpc-node/internal/tempkey"
 	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/godaddy-x/wallet-mpc-node/internal/log"
+	"github.com/godaddy-x/wallet-mpc-node/internal/tempkey"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -18,7 +18,7 @@ import (
 	"github.com/godaddy-x/freego/utils"
 	"github.com/godaddy-x/freego/utils/sdk"
 	"github.com/godaddy-x/wallet-mpc-node/mpc"
-	"github.com/godaddy-x/wallet-mpc-node/dto"
+	"github.com/godaddy-x/wallet-mpc-node/types"
 	lru "github.com/hashicorp/golang-lru/v2"
 )
 
@@ -83,7 +83,7 @@ func markSignMsgProcessed(taskID, myNodeID string, fromIndex int, isBroadcast bo
 
 // RunSignNodeRealByAlg 按算法执行本节点的 CGGMP 签名逻辑。
 func RunSignNodeRealByAlg(
-	start dto.CliMPCSignStartRes,
+	start types.CliMPCSignStartRes,
 	myNodeID string,
 	wsClient *sdk.SocketSDK,
 	session *signSession,
@@ -104,7 +104,7 @@ func RunSignNodeRealByAlg(
 func submitSignResultWithRetry(
 	wsClient *sdk.SocketSDK,
 	myNodeID string,
-	req *dto.CliMPCSignResultReq,
+	req *types.CliMPCSignResultReq,
 	maxAttempts int,
 ) error {
 	if wsClient == nil || req == nil {
@@ -118,7 +118,7 @@ func submitSignResultWithRetry(
 	for i := 1; i <= maxAttempts; i++ {
 		log.SignErrf("TRACE_NODE_SUBMIT_SIGN_RESULT_BEGIN node=%s task=%s attempt=%d/%d hasErr=%t sigLen=%d",
 			myNodeID, req.TaskID, i, maxAttempts, req.Err != "", len(req.SignatureHex))
-		var res dto.CliMPCSignResultRes
+		var res types.CliMPCSignResultRes
 		err := wsClient.SendWebSocketMessage("/ws/mpcSignResult", req, &res, true, true, 30)
 		if err == nil && res.OK {
 			log.SignErrf("TRACE_NODE_SUBMIT_SIGN_RESULT_OK node=%s task=%s attempt=%d/%d hasErr=%t sigLen=%d",
@@ -143,7 +143,7 @@ func submitSignResultWithRetry(
 	return lastErr
 }
 
-func sendSignProtocolMsgWithRetry(wsClient *sdk.SocketSDK, req *dto.CliMPCEncryptData, maxAttempts int) error {
+func sendSignProtocolMsgWithRetry(wsClient *sdk.SocketSDK, req *types.CliMPCEncryptData, maxAttempts int) error {
 	return sendMpcProtocolMsgWithRetry(wsClient, "/ws/mpcSignMsg", req, maxAttempts)
 }
 
@@ -152,7 +152,7 @@ func HandleSignStart(wsClient *sdk.SocketSDK, myNodeID, router string, body []by
 	if len(body) == 0 {
 		return nil
 	}
-	var decrypt dto.CliMPCEncryptData
+	var decrypt types.CliMPCEncryptData
 	if err := utils.JsonUnmarshal(body, &decrypt); err != nil {
 		return err
 	}
@@ -167,7 +167,7 @@ func HandleSignStart(wsClient *sdk.SocketSDK, myNodeID, router string, body []by
 	if err != nil {
 		return err
 	}
-	var start dto.CliMPCSignStartRes
+	var start types.CliMPCSignStartRes
 	if err := utils.JsonUnmarshal(msg, &start); err != nil {
 		return err
 	}
@@ -256,7 +256,7 @@ func HandleSignStart(wsClient *sdk.SocketSDK, myNodeID, router string, body []by
 		nodeID := myNodeID
 		if start.RefreshWarmOnly {
 			warmErr := runWarmRefreshNodeECDSA(start, myNodeID, wsClient, session)
-			req := &dto.CliMPCSignResultReq{
+			req := &types.CliMPCSignResultReq{
 				TaskID:        start.TaskID,
 				NodeID:        nodeID,
 				KeyID:         start.KeyID,
@@ -277,7 +277,7 @@ func HandleSignStart(wsClient *sdk.SocketSDK, myNodeID, router string, body []by
 		sigHex, needRefreshWarm, materialUseCount, err := RunSignNodeRealByAlg(start, myNodeID, wsClient, session)
 		if err != nil {
 			log.SignErrf("TRACE_NODE_SIGN_FAILED node=%s task=%s err=%v", myNodeID, start.TaskID, err)
-			req := &dto.CliMPCSignResultReq{
+			req := &types.CliMPCSignResultReq{
 				TaskID: start.TaskID,
 				NodeID: nodeID,
 				KeyID:  start.KeyID,
@@ -291,7 +291,7 @@ func HandleSignStart(wsClient *sdk.SocketSDK, myNodeID, router string, body []by
 
 		log.SignErrf("TRACE_NODE_SIGN_SUCCEEDED node=%s task=%s keyID=%s sigLen=%d needRefreshWarm=%t useCount=%d",
 			myNodeID, start.TaskID, start.KeyID, len(sigHex), needRefreshWarm, materialUseCount)
-		req := &dto.CliMPCSignResultReq{
+		req := &types.CliMPCSignResultReq{
 			TaskID:           start.TaskID,
 			NodeID:           nodeID,
 			KeyID:            start.KeyID,
@@ -532,7 +532,7 @@ func DeliverSignMsg(wsClient *sdk.SocketSDK, myNodeID, router string, body []byt
 	if len(body) == 0 {
 		return nil
 	}
-	var decrypt dto.CliMPCEncryptData
+	var decrypt types.CliMPCEncryptData
 	if err := utils.JsonUnmarshal(body, &decrypt); err != nil {
 		return err
 	}
@@ -550,7 +550,7 @@ func DeliverSignMsg(wsClient *sdk.SocketSDK, myNodeID, router string, body []byt
 		log.SignErrf("TRACE_NODE_SIGN_DELIVER_DECRYPT_FAILED node=%s task=%s err=%v", myNodeID, decrypt.TaskID, err)
 		return err
 	}
-	var res dto.CliMPCSignMsgRes
+	var res types.CliMPCSignMsgRes
 	if err := utils.JsonUnmarshal(msg, &res); err != nil {
 		return err
 	}

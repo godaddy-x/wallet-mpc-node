@@ -1,4 +1,4 @@
-﻿package alg_ed25519
+package alg_ed25519
 
 import (
 	"encoding/json"
@@ -12,18 +12,18 @@ import (
 )
 
 type NodeShareData struct {
-	Version    string            `json:"version"`
-	KeyID      string            `json:"keyID"`
-	NodeID     string            `json:"nodeID"`
-	SessionID  string            `json:"sessionId"`
-	Share      string            `json:"share"`
-	PubX       string            `json:"pubX"`
-	PubY       string            `json:"pubY"`
-	PubHex     string            `json:"pubHex,omitempty"`
-	Bks        map[string]BkJSON `json:"bks"`
+	Version    string             `json:"version"`
+	KeyID      string             `json:"keyID"`
+	NodeID     string             `json:"nodeID"`
+	SessionID  string             `json:"sessionId"`
+	Share      string             `json:"share"`
+	PubX       string             `json:"pubX"`
+	PubY       string             `json:"pubY"`
+	PubHex     string             `json:"pubHex,omitempty"`
+	Bks        map[string]BkJSON  `json:"bks"`
 	Ys         map[string]PubJSON `json:"ys"`
-	AllNodeIDs []string          `json:"allNodeIDs"`
-	Threshold  uint32            `json:"threshold"`
+	AllNodeIDs []string           `json:"allNodeIDs"`
+	Threshold  uint32             `json:"threshold"`
 }
 
 type FileKeyStore struct {

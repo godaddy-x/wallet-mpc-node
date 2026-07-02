@@ -16,10 +16,10 @@ import (
 	ecc "github.com/godaddy-x/eccrypto"
 	"github.com/godaddy-x/freego/utils"
 	"github.com/godaddy-x/freego/utils/sdk"
-	"github.com/godaddy-x/wallet-mpc-node/dto"
 	"github.com/godaddy-x/wallet-mpc-node/mpc"
 	"github.com/godaddy-x/wallet-mpc-node/mpc/alg_ecdsa"
 	"github.com/godaddy-x/wallet-mpc-node/mpc/alg_ed25519"
+	"github.com/godaddy-x/wallet-mpc-node/types"
 	lru "github.com/hashicorp/golang-lru/v2"
 )
 
@@ -83,7 +83,7 @@ func markKeygenMsgProcessed(taskID, myNodeID string, fromIndex int, isBroadcast 
 	keygenMsgDedup.Add(keygenMsgDedupKey(taskID, myNodeID, fromIndex, isBroadcast, wireB64), struct{}{})
 }
 
-func sendKeygenProtocolMsgWithRetry(wsClient *sdk.SocketSDK, req *dto.CliMPCEncryptData, maxAttempts int) error {
+func sendKeygenProtocolMsgWithRetry(wsClient *sdk.SocketSDK, req *types.CliMPCEncryptData, maxAttempts int) error {
 	return sendMpcProtocolMsgWithRetry(wsClient, "/ws/mpcKeygenMsg", req, maxAttempts)
 }
 
@@ -314,7 +314,7 @@ func DeliverKeygenMsg(wsClient *sdk.SocketSDK, myNodeID, router string, body []b
 	if len(body) == 0 {
 		return nil
 	}
-	var decrypt dto.CliMPCEncryptData
+	var decrypt types.CliMPCEncryptData
 	if err := utils.JsonUnmarshal(body, &decrypt); err != nil {
 		return err
 	}
@@ -329,7 +329,7 @@ func DeliverKeygenMsg(wsClient *sdk.SocketSDK, myNodeID, router string, body []b
 	if err != nil {
 		return err
 	}
-	var res dto.CliMPCKeygenMsgRes
+	var res types.CliMPCKeygenMsgRes
 	if err := utils.JsonUnmarshal(msg, &res); err != nil {
 		log.Keygenf("Deliver: json error = %v\n", err)
 		return err
@@ -400,7 +400,7 @@ func DeliverKeygenMsg(wsClient *sdk.SocketSDK, myNodeID, router string, body []b
 // ============ 以下是你原有的业务逻辑（未改动，仅保留上下文） ============
 
 // RunKeygenNodeRealByAlg 按算法运行一次本节点的 keygen 协议（CGGMP / Alice）。
-func RunKeygenNodeRealByAlg(start dto.CliMPCKeygenStartRes, myNodeID string, wsClient *sdk.SocketSDK, session *keygenSession) (keyID string, err error) {
+func RunKeygenNodeRealByAlg(start types.CliMPCKeygenStartRes, myNodeID string, wsClient *sdk.SocketSDK, session *keygenSession) (keyID string, err error) {
 	switch mpc.Algorithm(start.Algorithm) {
 	case mpc.AlgECDSA:
 		return runKeygenNodeECDSA(start, myNodeID, wsClient, session)
@@ -411,7 +411,7 @@ func RunKeygenNodeRealByAlg(start dto.CliMPCKeygenStartRes, myNodeID string, wsC
 	}
 }
 
-func submitKeygenResultWithRetry(wsClient *sdk.SocketSDK, req *dto.CliMPCKeygenResultReq, maxAttempts int) error {
+func submitKeygenResultWithRetry(wsClient *sdk.SocketSDK, req *types.CliMPCKeygenResultReq, maxAttempts int) error {
 	if wsClient == nil || req == nil {
 		return errors.New("submitKeygenResultWithRetry invalid argument")
 	}
@@ -421,7 +421,7 @@ func submitKeygenResultWithRetry(wsClient *sdk.SocketSDK, req *dto.CliMPCKeygenR
 	backoff := []time.Duration{100 * time.Millisecond, 300 * time.Millisecond, 800 * time.Millisecond}
 	var lastErr error
 	for i := 1; i <= maxAttempts; i++ {
-		var res dto.CliMPCKeygenResultRes
+		var res types.CliMPCKeygenResultRes
 		err := wsClient.SendWebSocketMessage("/ws/mpcKeygenResult", req, &res, true, true, 30)
 		if err == nil && res.OK {
 			return nil
@@ -448,7 +448,7 @@ func submitKeygenResultErr(wsClient *sdk.SocketSDK, taskID, nodeID, errMsg strin
 	if len(errMsg) > maxErrMsgLen {
 		errMsg = errMsg[:maxErrMsgLen] + "..."
 	}
-	req := &dto.CliMPCKeygenResultReq{
+	req := &types.CliMPCKeygenResultReq{
 		TaskID: taskID,
 		NodeID: nodeID,
 		Err:    errMsg,
@@ -461,7 +461,7 @@ func HandleKeygenStart(wsClient *sdk.SocketSDK, myNodeID, router string, body []
 	if len(body) == 0 {
 		return nil
 	}
-	var decrypt dto.CliMPCEncryptData
+	var decrypt types.CliMPCEncryptData
 	if err := utils.JsonUnmarshal(body, &decrypt); err != nil {
 		return err
 	}
@@ -476,7 +476,7 @@ func HandleKeygenStart(wsClient *sdk.SocketSDK, myNodeID, router string, body []
 	if err != nil {
 		return err
 	}
-	var start dto.CliMPCKeygenStartRes
+	var start types.CliMPCKeygenStartRes
 	if err := utils.JsonUnmarshal(msg, &start); err != nil {
 		return err
 	}

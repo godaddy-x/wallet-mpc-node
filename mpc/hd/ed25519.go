@@ -1,4 +1,4 @@
-﻿package hd
+package hd
 
 import (
 	"crypto/hmac"

@@ -1,8 +1,8 @@
-﻿package alg_ecdsa
+package alg_ecdsa
 
 import (
-	"github.com/godaddy-x/wallet-mpc-node/mpc"
 	"context"
+	"github.com/godaddy-x/wallet-mpc-node/mpc"
 	"math/big"
 	"testing"
 	"time"

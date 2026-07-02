@@ -1,4 +1,4 @@
-﻿package alg_ecdsa
+package alg_ecdsa
 
 import (
 	"errors"
@@ -32,10 +32,10 @@ var ErrSignMaterialExhausted = errors.New("ecdsa: sign material exhausted")
 
 // MaterialAcquireResult Acquire 返回值。
 type MaterialAcquireResult struct {
-	Result    *refreshpkg.Result
-	NeedWarm  bool
-	UseCount  int
-	Tier      MaterialUseTier
+	Result   *refreshpkg.Result
+	NeedWarm bool
+	UseCount int
+	Tier     MaterialUseTier
 }
 
 type signMaterialSlot struct {

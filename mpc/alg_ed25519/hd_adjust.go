@@ -1,4 +1,4 @@
-﻿package alg_ed25519
+package alg_ed25519
 
 import (
 	"fmt"

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/godaddy-x/freego/utils/sdk"
-	"github.com/godaddy-x/wallet-mpc-node/dto"
+	"github.com/godaddy-x/wallet-mpc-node/types"
 )
 
 const (
@@ -33,7 +33,7 @@ func mpcProtocolSendBackoff() []time.Duration {
 	}
 }
 
-func sendMpcProtocolMsgWithRetry(wsClient *sdk.SocketSDK, route string, req *dto.CliMPCEncryptData, maxAttempts int) error {
+func sendMpcProtocolMsgWithRetry(wsClient *sdk.SocketSDK, route string, req *types.CliMPCEncryptData, maxAttempts int) error {
 	if wsClient == nil || req == nil {
 		return errors.New("sendMpcProtocolMsgWithRetry invalid argument")
 	}
@@ -43,7 +43,7 @@ func sendMpcProtocolMsgWithRetry(wsClient *sdk.SocketSDK, route string, req *dto
 	backoff := mpcProtocolSendBackoff()
 	var lastErr error
 	for i := 1; i <= maxAttempts; i++ {
-		var res dto.CliMPCResultRes
+		var res types.CliMPCResultRes
 		err := wsClient.SendWebSocketMessage(route, req, &res, true, true, mpcProtocolWSReqSec)
 		if err == nil && res.OK {
 			return nil

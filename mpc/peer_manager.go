@@ -11,11 +11,11 @@ type ModuleForProtoFunc func(msg proto.Message) (byte, error)
 
 // WSPeerManager 适配 Alice PeerManager 到 WebSocket 转发。
 type WSPeerManager struct {
-	label       string
-	selfID      string
-	peerIDs     []string
-	send        SendWireFunc
-	moduleFor   ModuleForProtoFunc
+	label     string
+	selfID    string
+	peerIDs   []string
+	send      SendWireFunc
+	moduleFor ModuleForProtoFunc
 }
 
 func NewWSPeerManager(selfID string, allNodeIDs []string, send SendWireFunc, moduleFor ModuleForProtoFunc, label string) *WSPeerManager {

@@ -25,7 +25,7 @@
 
 ## 签名算法
 
-Keygen / Sign 由 broker 会话 DTO 的 **`algorithm`** 字段路由（`ecdsa` | `ed25519`）：
+Keygen / Sign 由 broker 会话类型的 **`algorithm`** 字段路由（`ecdsa` | `ed25519`）：
 
 | 标识 | 链上算法 | 门限协议 | 代码 |
 |------|----------|----------|------|
@@ -47,7 +47,7 @@ Keygen / Sign 由 broker 会话 DTO 的 **`algorithm`** 字段路由（`ecdsa` |
 ├── mpc_keygen.go, mpc_sign.go       # 按 algorithm 路由
 ├── mpc_ecdsa.go, mpc_ed25519.go     # CGGMP / FROST 流程
 ├── connect/                         # WebSocket SDK
-├── dto/                             # 协议 DTO（broker ↔ node）
+├── types/                             # 协议类型（broker ↔ node）
 ├── examples/                        # cli_node*.example.json
 ├── pqc-keypair.md                   # PQC（ML-DSA-87）密钥对生成与安全说明
 ├── mpc/

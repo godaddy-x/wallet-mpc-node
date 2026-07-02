@@ -1,4 +1,4 @@
-﻿package alg_ecdsa
+package alg_ecdsa
 
 import (
 	"context"
@@ -17,10 +17,10 @@ const signTimeout = 6 * time.Minute
 
 // SignOutput ECDSA 签名 R||S hex。
 type SignOutput struct {
-	R               *big.Int
-	S               *big.Int
-	SignatureHex    string
-	NeedRefreshWarm bool
+	R                *big.Int
+	S                *big.Int
+	SignatureHex     string
+	NeedRefreshWarm  bool
 	MaterialUseCount int
 	MaterialTier     MaterialUseTier
 }

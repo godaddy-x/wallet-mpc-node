@@ -1,20 +1,20 @@
-﻿// 本文件：Alice FROST Ed25519 协议 WS 路由与节点侧 keygen/sign 执行。
+// 本文件：Alice FROST Ed25519 协议 WS 路由与节点侧 keygen/sign 执行。
 package protocol
 
 import (
-	"github.com/godaddy-x/wallet-mpc-node/internal/config"
-	"github.com/godaddy-x/wallet-mpc-node/internal/log"
 	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/godaddy-x/wallet-mpc-node/internal/config"
+	"github.com/godaddy-x/wallet-mpc-node/internal/log"
 	"sync"
 	"time"
 
 	"github.com/godaddy-x/freego/utils/sdk"
 	"github.com/godaddy-x/wallet-mpc-node/mpc"
 	"github.com/godaddy-x/wallet-mpc-node/mpc/alg_ed25519"
-	"github.com/godaddy-x/wallet-mpc-node/dto"
+	"github.com/godaddy-x/wallet-mpc-node/types"
 )
 
 const (
@@ -81,7 +81,7 @@ func (r *wsFrostRouter) Receive(fromIndex int, wireBytes []byte) error {
 	return r.inbox.Deliver(fromNodeID, wireB64)
 }
 
-func runKeygenNodeFROST(start dto.CliMPCKeygenStartRes, myNodeID string, wsClient *sdk.SocketSDK, session *keygenSession) (keyID string, err error) {
+func runKeygenNodeFROST(start types.CliMPCKeygenStartRes, myNodeID string, wsClient *sdk.SocketSDK, session *keygenSession) (keyID string, err error) {
 	router := session.frost
 	if router == nil {
 		return "", errors.New("keygen frost router is nil")
@@ -118,7 +118,7 @@ func runKeygenNodeFROST(start dto.CliMPCKeygenStartRes, myNodeID string, wsClien
 	return keyID, nil
 }
 
-func runSignNodeFROST(start dto.CliMPCSignStartRes, myNodeID string, wsClient *sdk.SocketSDK, session *signSession) (signatureHex string, needRefreshWarm bool, materialUseCount int, err error) {
+func runSignNodeFROST(start types.CliMPCSignStartRes, myNodeID string, wsClient *sdk.SocketSDK, session *signSession) (signatureHex string, needRefreshWarm bool, materialUseCount int, err error) {
 	router := session.frost
 	if router == nil {
 		return "", false, 0, errors.New("sign frost router is nil")

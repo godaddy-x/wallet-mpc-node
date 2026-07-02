@@ -13,7 +13,7 @@ import (
 const encPrefix = "mpc-keystore-v1:"
 
 var (
-	ErrEncryptionKeyRequired = errors.New("keystore: MPC_KEYSTORE_KEY or keystoreKey required for at-rest encryption")
+	ErrEncryptionKeyRequired  = errors.New("keystore: MPC_KEYSTORE_KEY or keystoreKey required for at-rest encryption")
 	ErrPlaintextShardRejected = errors.New("keystore: plaintext shard rejected; file must use mpc-keystore-v1: encryption")
 )
 

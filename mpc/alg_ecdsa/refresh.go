@@ -1,4 +1,4 @@
-﻿package alg_ecdsa
+package alg_ecdsa
 
 import (
 	"context"
@@ -82,4 +82,3 @@ func RunRefresh(
 	}
 	return core.GetResult()
 }
-

@@ -9,9 +9,9 @@ import (
 
 // AliceListener 实现 Alice StateChangedListener。
 type AliceListener struct {
-	errCh      chan error
-	failLabel  string
-	detail     atomic.Value // string
+	errCh     chan error
+	failLabel string
+	detail    atomic.Value // string
 }
 
 // NewAliceListener failLabel 用于失败消息前缀，例如 "cggmp" / "frost"。

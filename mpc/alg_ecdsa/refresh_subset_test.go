@@ -1,9 +1,9 @@
-﻿package alg_ecdsa
+package alg_ecdsa
 
 import (
-	"github.com/godaddy-x/wallet-mpc-node/mpc"
 	"context"
 	"encoding/json"
+	"github.com/godaddy-x/wallet-mpc-node/mpc"
 	"os"
 	"path/filepath"
 	"testing"

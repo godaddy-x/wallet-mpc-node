@@ -132,10 +132,10 @@ func dkgResultFromPersist(data *NodeShareData) (*dkgpkg.Result, error) {
 
 // RefreshPersist 可序列化的 refresh 输出（用于内存缓存克隆）。
 type RefreshPersist struct {
-	Share      string              `json:"share"`
-	Paillier   PaillierKeyJSON     `json:"paillier"`
-	PartialPub map[string]PubJSON  `json:"partialPub"`
-	Ped        map[string]PedJSON  `json:"ped"`
+	Share      string             `json:"share"`
+	Paillier   PaillierKeyJSON    `json:"paillier"`
+	PartialPub map[string]PubJSON `json:"partialPub"`
+	Ped        map[string]PedJSON `json:"ped"`
 }
 
 func refreshResultToPersist(r *refreshpkg.Result) (*RefreshPersist, error) {

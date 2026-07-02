@@ -1,6 +1,6 @@
-﻿// Package dto 定义钱包 API 与 CLI 使用的请求/响应及 MPC 相关数据结构（easyjson 生成代码在 *_easyjson.go）。
-// import 路径：github.com/godaddy-x/wallet-mpc-node/dto。
-package dto
+// Package types defines broker/node WebSocket protocol request and response structs (easyjson in *_easyjson.go).
+// Import path: github.com/godaddy-x/wallet-mpc-node/types.
+package types
 
 import "github.com/godaddy-x/freego/node/common"
 
@@ -203,16 +203,16 @@ type SignData struct {
 //
 //easyjson:json
 type CliMPCSignStartRes struct {
-	TaskID        string                `json:"taskID"`
-	Algorithm     string                `json:"algorithm,omitempty"` // MPC 算法标识，例如 \"ecdsa\"、\"ed25519\"
-	KeyID         string                `json:"keyID"`               // 要使用的根密钥 KeyID
-	AllNodeIDs    []string              `json:"allNodeIDs"`          // 全量节点列表
-	SignNodeIDs   []string              `json:"signNodeIDs"`         // 参与签名的节点（TSS 顺序）
-	Threshold     int                   `json:"threshold"`           // 门限（通常与 keygen 一致）
-	ExpiredTime   int64                 `json:"expiredTime"`         // 任务过期时间，秒级时间戳
-	PublicKeyPair []CliMPCPublicKeyPair `json:"publicKeyPair"`
-	SignData      SignData              `json:"signData"` // 签名数据内容与参数
-	RefreshWarmOnly bool                `json:"refreshWarmOnly,omitempty"` // true：仅后台 refresh warm，不签名
+	TaskID          string                `json:"taskID"`
+	Algorithm       string                `json:"algorithm,omitempty"` // MPC 算法标识，例如 \"ecdsa\"、\"ed25519\"
+	KeyID           string                `json:"keyID"`               // 要使用的根密钥 KeyID
+	AllNodeIDs      []string              `json:"allNodeIDs"`          // 全量节点列表
+	SignNodeIDs     []string              `json:"signNodeIDs"`         // 参与签名的节点（TSS 顺序）
+	Threshold       int                   `json:"threshold"`           // 门限（通常与 keygen 一致）
+	ExpiredTime     int64                 `json:"expiredTime"`         // 任务过期时间，秒级时间戳
+	PublicKeyPair   []CliMPCPublicKeyPair `json:"publicKeyPair"`
+	SignData        SignData              `json:"signData"`                  // 签名数据内容与参数
+	RefreshWarmOnly bool                  `json:"refreshWarmOnly,omitempty"` // true：仅后台 refresh warm，不签名
 }
 
 // CliMPCSignResultReq 节点上报签名结果（POST /ws/mpcSignResult）
@@ -220,14 +220,14 @@ type CliMPCSignStartRes struct {
 //easyjson:json
 type CliMPCSignResultReq struct {
 	common.BaseReq
-	TaskID       string `json:"taskID"`
-	NodeID       string `json:"nodeID"`
-	KeyID        string `json:"keyID"`
-	SignatureHex string `json:"signatureHex"` // R||S 的 64字节 hex（或空，当 Err 不为空时）
-	Err          string `json:"err"`
-	RefreshWarmOK bool  `json:"refreshWarmOK,omitempty"` // 后台 refresh warm 成功
-	NeedRefreshWarm bool `json:"needRefreshWarm,omitempty"` // 材料使用次数达阈值，建议触发 warm
-	MaterialUseCount int `json:"materialUseCount,omitempty"` // 本次签名后材料 uses 计数
+	TaskID           string `json:"taskID"`
+	NodeID           string `json:"nodeID"`
+	KeyID            string `json:"keyID"`
+	SignatureHex     string `json:"signatureHex"` // R||S 的 64字节 hex（或空，当 Err 不为空时）
+	Err              string `json:"err"`
+	RefreshWarmOK    bool   `json:"refreshWarmOK,omitempty"`    // 后台 refresh warm 成功
+	NeedRefreshWarm  bool   `json:"needRefreshWarm,omitempty"`  // 材料使用次数达阈值，建议触发 warm
+	MaterialUseCount int    `json:"materialUseCount,omitempty"` // 本次签名后材料 uses 计数
 }
 
 // CliMPCSignResultRes 服务端对签名结果上报的响应

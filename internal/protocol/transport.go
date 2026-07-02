@@ -9,8 +9,8 @@ import (
 	ecc "github.com/godaddy-x/eccrypto"
 	"github.com/godaddy-x/freego/utils"
 	"github.com/godaddy-x/freego/utils/sdk"
-	"github.com/godaddy-x/wallet-mpc-node/dto"
 	"github.com/godaddy-x/wallet-mpc-node/mpc"
+	"github.com/godaddy-x/wallet-mpc-node/types"
 )
 
 var mpcKeySessionLocks sync.Map // keyID|participants -> *sync.Mutex
@@ -26,7 +26,7 @@ func sendMPCProtocolWire(wsClient *sdk.SocketSDK, taskID, module string, myIndex
 	var err error
 	switch module {
 	case "keygen":
-		payload := &dto.CliMPCKeygenMsgRes{
+		payload := &types.CliMPCKeygenMsgRes{
 			TaskID:          taskID,
 			WireBytesBase64: wireB64,
 			FromIndex:       myIndex,
@@ -34,7 +34,7 @@ func sendMPCProtocolWire(wsClient *sdk.SocketSDK, taskID, module string, myIndex
 		}
 		data, err = utils.JsonMarshal(payload)
 	case "sign":
-		payload := &dto.CliMPCSignMsgRes{
+		payload := &types.CliMPCSignMsgRes{
 			TaskID:          taskID,
 			WireBytesBase64: wireB64,
 			FromIndex:       myIndex,
@@ -62,7 +62,7 @@ func sendMPCProtocolWire(wsClient *sdk.SocketSDK, taskID, module string, myIndex
 	if err != nil {
 		return err
 	}
-	req := &dto.CliMPCEncryptData{TaskID: taskID, Subject: targetNodeID, Data: utils.Base64Encode(encrypt)}
+	req := &types.CliMPCEncryptData{TaskID: taskID, Subject: targetNodeID, Data: utils.Base64Encode(encrypt)}
 	switch module {
 	case "keygen":
 		return sendKeygenProtocolMsgWithRetry(wsClient, req, mpcProtocolSendMaxAttempts)

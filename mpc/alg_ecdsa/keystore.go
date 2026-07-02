@@ -1,4 +1,4 @@
-﻿package alg_ecdsa
+package alg_ecdsa
 
 import (
 	"encoding/json"
@@ -13,18 +13,18 @@ import (
 
 // NodeShareData 节点本地持久化的 CGGMP 根份额（DKG + partial pub keys）。
 type NodeShareData struct {
-	Version         string             `json:"version"`
-	KeyID           string             `json:"keyID"`
-	NodeID          string             `json:"nodeID"`
-	SessionID       string             `json:"sessionId"`
-	Share           string             `json:"share"`
-	PubX            string             `json:"pubX"`
-	PubY            string             `json:"pubY"`
-	Rid             string             `json:"rid"`
-	Bks             map[string]BkJSON  `json:"bks"`
-	PartialPubKeys  map[string]PubJSON `json:"partialPubKeys"`
-	AllNodeIDs      []string           `json:"allNodeIDs"`
-	Threshold       uint32             `json:"threshold"`
+	Version        string             `json:"version"`
+	KeyID          string             `json:"keyID"`
+	NodeID         string             `json:"nodeID"`
+	SessionID      string             `json:"sessionId"`
+	Share          string             `json:"share"`
+	PubX           string             `json:"pubX"`
+	PubY           string             `json:"pubY"`
+	Rid            string             `json:"rid"`
+	Bks            map[string]BkJSON  `json:"bks"`
+	PartialPubKeys map[string]PubJSON `json:"partialPubKeys"`
+	AllNodeIDs     []string           `json:"allNodeIDs"`
+	Threshold      uint32             `json:"threshold"`
 }
 
 // FileKeyStore CGGMP 份额文件存储：BaseDir/{keyID}-{nodeID}.json

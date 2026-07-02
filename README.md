@@ -25,7 +25,7 @@ Open-source **MPC signing node** (GPL-3.0). Connects to **wallet-mpc-broker** (c
 
 ## Signing algorithms
 
-Keygen and Sign are routed by the **`algorithm`** field on broker session DTOs (`ecdsa` | `ed25519`):
+Keygen and Sign are routed by the **`algorithm`** field on broker session types (`ecdsa` | `ed25519`):
 
 | ID | On-chain | Protocol | Package |
 |----|----------|----------|---------|
@@ -52,7 +52,7 @@ Keygen and Sign are routed by the **`algorithm`** field on broker session DTOs (
 │   ├── protocol/                    # keygen/sign orchestration + CGGMP/FROST adapters
 │   └── tempkey/                     # ML-KEM temporary keys
 ├── connect/                         # shared connection JSON schema
-├── dto/                             # protocol DTOs (broker ↔ node)
+├── types/                             # protocol types (broker ↔ node)
 ├── integration/                     # integration tests
 ├── examples/                        # cli_node*.example.json
 ├── pqc-keypair.md                   # PQC (ML-DSA-87) key pair provisioning
