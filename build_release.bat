@@ -49,6 +49,13 @@ if %errorlevel% neq 0 (
     echo [ERROR] go build failed for %GOOS%/%GOARCH%
     exit /b 1
 )
+where upx >nul 2>&1
+if %errorlevel% equ 0 (
+    echo --- UPX %OUT% ---
+    upx --best --lzma "%OUT%"
+) else (
+    echo UPX not installed, skip %OUT%
+)
 exit /b 0
 
 :failed

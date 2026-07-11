@@ -4,15 +4,56 @@ package broker
 import (
 	"errors"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/godaddy-x/freego/utils/sdk"
 	"github.com/godaddy-x/freego/zlog"
 	"github.com/godaddy-x/wallet-mpc-node/connect"
+	nodelog "github.com/godaddy-x/wallet-mpc-node/internal/log"
 	"github.com/godaddy-x/wallet-mpc-node/internal/protocol"
 	"github.com/godaddy-x/wallet-mpc-node/internal/tempkey"
 	"github.com/godaddy-x/wallet-mpc-node/types"
+	"go.uber.org/zap"
 )
+
+var loginFailLog struct {
+	mu     sync.Mutex
+	source string
+	msg    string
+	at     time.Time
+}
+
+func logBrokerLoginFailure(cliConfig connect.SdkConfig, err error) {
+	parsed := nodelog.ParseError(err)
+	if parsed.Msg == "" {
+		return
+	}
+	loginFailLog.mu.Lock()
+	defer loginFailLog.mu.Unlock()
+	if loginFailLog.source == cliConfig.Source &&
+		loginFailLog.msg == parsed.Msg &&
+		time.Since(loginFailLog.at) < 5*time.Second {
+		return
+	}
+	loginFailLog.source = cliConfig.Source
+	loginFailLog.msg = parsed.Msg
+	loginFailLog.at = time.Now()
+
+	fields := []zap.Field{
+		zlog.String("source", cliConfig.Source),
+		zlog.String("broker", cliConfig.Domain),
+	}
+	fields = append(fields, parsed.ZapFields()...)
+	fields = append(fields, zlog.String("hint", "ensure wallet-mpc-broker is running and domain matches cli config"))
+	zlog.Warn("broker login failed", 0, fields...)
+}
+
+func logBrokerError(title string, cliConfig connect.SdkConfig, err error) {
+	fields := []zap.Field{zlog.String("source", cliConfig.Source), zlog.String("broker", cliConfig.Domain)}
+	fields = append(fields, nodelog.ZapErrorFields(err)...)
+	zlog.Error(title, 0, fields...)
+}
 
 func nodeLoginAuthToken(cliConfig connect.SdkConfig) (sdk.AuthToken, error) {
 	nodeID := strings.TrimSpace(cliConfig.Source)
@@ -45,7 +86,7 @@ func nodeLoginAuthToken(cliConfig connect.SdkConfig) (sdk.AuthToken, error) {
 func tryNodeLogin(wsClient *sdk.SocketSDK, cliConfig connect.SdkConfig) bool {
 	auth, err := nodeLoginAuthToken(cliConfig)
 	if err != nil {
-		zlog.Warn("node login failed", 0, zlog.String("source", cliConfig.Source), zlog.String("errMsg", err.Error()))
+		logBrokerLoginFailure(cliConfig, err)
 		return false
 	}
 	wsClient.AuthToken(auth)
@@ -68,12 +109,12 @@ func Run(cliConfig connect.SdkConfig) error {
 		switch router {
 		case "mpcTempPublicKey":
 			if err := tempkey.HandleTempPublicKey(wsClient, cliConfig.Source, router, data); err != nil {
-				zlog.Error("mpcTempPublicKey handler", 0, zlog.String("errMsg", err.Error()))
+				logBrokerError("mpcTempPublicKey handler failed", cliConfig, err)
 			}
 		case "mpcKeygenStart":
 			go func() {
 				if err := protocol.HandleKeygenStart(wsClient, cliConfig.Source, router, data); err != nil {
-					zlog.Error("mpc keygen start failed", 0, zlog.String("errMsg", err.Error()))
+					logBrokerError("mpc keygen start failed", cliConfig, err)
 				} else {
 					zlog.Info("mpc keygen start accepted", 0, zlog.String("source", cliConfig.Source))
 				}
@@ -81,12 +122,12 @@ func Run(cliConfig connect.SdkConfig) error {
 		case "mpcKeygenMsg":
 			zlog.Info("Push received", 0, zlog.String("router", router), zlog.String("flow", "keygen"), zlog.Int("len", len(data)))
 			if err := protocol.DeliverKeygenMsg(wsClient, cliConfig.Source, router, data); err != nil && err.Error() != "Error is nil" {
-				zlog.Error("mpcKeygenMsg deliver", 0, zlog.String("errMsg", err.Error()))
+				logBrokerError("mpcKeygenMsg deliver failed", cliConfig, err)
 			}
 		case "mpcSignStart":
 			go func() {
 				if err := protocol.HandleSignStart(wsClient, cliConfig.Source, router, data); err != nil {
-					zlog.Error("mpc sign start failed", 0, zlog.String("errMsg", err.Error()))
+					logBrokerError("mpc sign start failed", cliConfig, err)
 				} else {
 					zlog.Info("mpc sign start accepted", 0, zlog.String("source", cliConfig.Source))
 				}
@@ -94,23 +135,32 @@ func Run(cliConfig connect.SdkConfig) error {
 		case "mpcSignMsg":
 			zlog.Info("Push received", 0, zlog.String("router", router), zlog.String("flow", "sign"), zlog.Int("len", len(data)))
 			if err := protocol.DeliverSignMsg(wsClient, cliConfig.Source, router, data); err != nil && err.Error() != "Error is nil" {
-				zlog.Error("mpcSignMsg deliver", 0, zlog.String("errMsg", err.Error()))
+				logBrokerError("mpcSignMsg deliver failed", cliConfig, err)
 			}
 		}
 	})
 
-	tryNodeLogin(wsClient, cliConfig)
+	loggedIn := tryNodeLogin(wsClient, cliConfig)
 	wsClient.SetHealthPing(10)
 
 	if err := wsClient.ConnectWebSocket(); err != nil {
-		zlog.Error("sdk connect websocket error", 0, zlog.String("errMsg", err.Error()))
+		logBrokerError("broker websocket connect failed", cliConfig, err)
 		return err
 	}
 
 	if wsClient.IsWebSocketConnected() {
-		zlog.Info("sdk connect websocket success", 0, zlog.String("source", cliConfig.Source))
+		zlog.Info("broker websocket connected", 0,
+			zlog.String("source", cliConfig.Source),
+			zlog.String("broker", cliConfig.Domain))
+	} else if !loggedIn {
+		zlog.Warn("broker unreachable, async reconnect started", 0,
+			zlog.String("source", cliConfig.Source),
+			zlog.String("broker", cliConfig.Domain),
+			zlog.String("hint", "login failed because broker is not reachable; node will retry automatically"))
 	} else {
-		zlog.Info("sdk connect websocket pending, async reconnect started", 0, zlog.String("source", cliConfig.Source))
+		zlog.Info("broker websocket pending, async reconnect started", 0,
+			zlog.String("source", cliConfig.Source),
+			zlog.String("broker", cliConfig.Domain))
 	}
 
 	go func() {
