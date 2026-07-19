@@ -21,7 +21,7 @@ const (
 	// SignMaterialMaxUses 硬上限：已完成 64 次签名后拒绝（uses>=64 时不可再 Acquire）。
 	SignMaterialMaxUses = 64
 	// SignMaterialTTL refresh 材料最长有效时间。
-	SignMaterialTTL = 10 * time.Minute
+	SignMaterialTTL = 8 * time.Minute
 )
 
 // ErrSignMaterialNotReady 在线签名路径无可用 refresh 材料。

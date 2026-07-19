@@ -209,6 +209,30 @@ func HandleSignStart(wsClient *sdk.SocketSDK, myNodeID, router string, body []by
 		return errors.New("mpc sign task myIndex invalid")
 	}
 
+	if busyTask := activeSignTaskForNode(myNodeID); busyTask != "" && busyTask != start.TaskID {
+		// 连接抖动 temp key 丢失时，session 可能已关闭但 active 仍占位；清理后允许 warm/sign 继续。
+		if old := getSignSession(busyTask, myNodeID); old == nil || old.isClosed() {
+			log.SignErrf("TRACE_NODE_SIGN_START_CLEAR_STALE node=%s busy=%s new=%s", myNodeID, busyTask, start.TaskID)
+			if old != nil && old.alice != nil && old.keyID != "" {
+				cancelPriorEcdsaWarm(ecdsaWarmSessionKey(old.keyID, old.alice.sortedIDs))
+			}
+			endSignTask(busyTask, myNodeID)
+		} else {
+			errMsg := fmt.Sprintf("sign already in progress on node (active task %s)", busyTask)
+			log.SignErrf("TRACE_NODE_SIGN_START_BUSY node=%s task=%s active=%s", myNodeID, start.TaskID, busyTask)
+			req := &types.CliMPCSignResultReq{
+				TaskID: start.TaskID,
+				NodeID: myNodeID,
+				KeyID:  start.KeyID,
+				Err:    errMsg,
+			}
+			if submitErr := submitSignResultWithRetry(wsClient, myNodeID, req, 3); submitErr != nil {
+				log.SignErrf("TRACE_NODE_SUBMIT_BUSY_RESULT_FAILED node=%s task=%s err=%v", myNodeID, start.TaskID, submitErr)
+			}
+			return errors.New(errMsg)
+		}
+	}
+
 	if !beginSignTask(start.TaskID, myNodeID) {
 		log.SignErrf("TRACE_NODE_SIGN_START_DUPLICATE node=%s task=%s", myNodeID, start.TaskID)
 		return errors.New("sign already in progress for task")
@@ -223,6 +247,7 @@ func HandleSignStart(wsClient *sdk.SocketSDK, myNodeID, router string, body []by
 		wsClient: wsClient,
 	}
 	session := &signSession{
+		keyID:      start.KeyID,
 		router:     routerStub,
 		recvCh:     recvCh,
 		errCh:      errCh,
@@ -315,6 +340,7 @@ type wsSignRouter struct {
 }
 
 type signSession struct {
+	keyID        string
 	router       *wsSignRouter
 	alice        *wsAliceRouter
 	frost        *wsFrostRouter
@@ -326,6 +352,32 @@ type signSession struct {
 	partyStarted atomic.Bool
 	mu           sync.Mutex
 	closed       bool
+}
+
+func (s *signSession) isClosed() bool {
+	if s == nil {
+		return true
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.closed
+}
+
+// abortSignSessionTempKeyLost 连接抖动后 temp key 丢失：取消进行中的 warm/sign，避免占位导致协议超时。
+func abortSignSessionTempKeyLost(nodeID, taskID string) {
+	s := getSignSession(taskID, nodeID)
+	if s == nil {
+		return
+	}
+	log.SignErrf("TRACE_NODE_SIGN_ABORT_TEMP_KEY node=%s task=%s keyID=%s", nodeID, taskID, s.keyID)
+	if s.alice != nil && s.keyID != "" {
+		cancelPriorEcdsaWarm(ecdsaWarmSessionKey(s.keyID, s.alice.sortedIDs))
+	}
+	select {
+	case s.errCh <- errors.New("temp decaps key is nil"):
+	default:
+	}
+	s.close()
 }
 
 func (s *signSession) notifyPartyReady() {
@@ -376,6 +428,21 @@ func endSignTask(taskID, nodeID string) {
 	signActiveMu.Lock()
 	delete(signActive, key)
 	signActiveMu.Unlock()
+}
+
+func activeSignTaskForNode(nodeID string) string {
+	if nodeID == "" {
+		return ""
+	}
+	suffix := "|" + nodeID
+	signActiveMu.Lock()
+	defer signActiveMu.Unlock()
+	for key := range signActive {
+		if strings.HasSuffix(key, suffix) {
+			return strings.TrimSuffix(key, suffix)
+		}
+	}
+	return ""
 }
 
 func signSessionKey(taskID, nodeID string) string {
@@ -543,6 +610,7 @@ func DeliverSignMsg(wsClient *sdk.SocketSDK, myNodeID, router string, body []byt
 	if prk == nil {
 		log.SignErrf("TRACE_NODE_SIGN_DELIVER_NO_DECAPS_KEY node=%s task=%s (temp key expired or missing?)",
 			myNodeID, decrypt.TaskID)
+		abortSignSessionTempKeyLost(myNodeID, decrypt.TaskID)
 		return errors.New("temp decaps key is nil")
 	}
 	msg, err := ecc.DecryptMLKEM1024(prk, utils.Base64Decode(decrypt.Data), utils.Str2Bytes(utils.AddStr(decrypt.TaskID, "|", myNodeID, "|mpcSignMsg")), nil)
