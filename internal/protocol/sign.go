@@ -209,17 +209,21 @@ func HandleSignStart(wsClient *sdk.SocketSDK, myNodeID, router string, body []by
 		return errors.New("mpc sign task myIndex invalid")
 	}
 
-	if busyTask := activeSignTaskForNode(myNodeID); busyTask != "" && busyTask != start.TaskID {
+	if start.KeyID == "" {
+		return errors.New("mpc sign task keyID is empty")
+	}
+
+	if busyTask := activeSignTaskForKey(myNodeID, start.KeyID); busyTask != "" && busyTask != start.TaskID {
 		// 连接抖动 temp key 丢失时，session 可能已关闭但 active 仍占位；清理后允许 warm/sign 继续。
 		if old := getSignSession(busyTask, myNodeID); old == nil || old.isClosed() {
-			log.SignErrf("TRACE_NODE_SIGN_START_CLEAR_STALE node=%s busy=%s new=%s", myNodeID, busyTask, start.TaskID)
+			log.SignErrf("TRACE_NODE_SIGN_START_CLEAR_STALE node=%s keyID=%s busy=%s new=%s", myNodeID, start.KeyID, busyTask, start.TaskID)
 			if old != nil && old.alice != nil && old.keyID != "" {
 				cancelPriorEcdsaWarm(ecdsaWarmSessionKey(old.keyID, old.alice.sortedIDs))
 			}
 			endSignTask(busyTask, myNodeID)
 		} else {
-			errMsg := fmt.Sprintf("sign already in progress on node (active task %s)", busyTask)
-			log.SignErrf("TRACE_NODE_SIGN_START_BUSY node=%s task=%s active=%s", myNodeID, start.TaskID, busyTask)
+			errMsg := fmt.Sprintf("sign already in progress on node for key (active task %s)", busyTask)
+			log.SignErrf("TRACE_NODE_SIGN_START_BUSY node=%s task=%s keyID=%s active=%s", myNodeID, start.TaskID, start.KeyID, busyTask)
 			req := &types.CliMPCSignResultReq{
 				TaskID: start.TaskID,
 				NodeID: myNodeID,
@@ -233,8 +237,8 @@ func HandleSignStart(wsClient *sdk.SocketSDK, myNodeID, router string, body []by
 		}
 	}
 
-	if !beginSignTask(start.TaskID, myNodeID) {
-		log.SignErrf("TRACE_NODE_SIGN_START_DUPLICATE node=%s task=%s", myNodeID, start.TaskID)
+	if !beginSignTask(start.TaskID, myNodeID, start.KeyID) {
+		log.SignErrf("TRACE_NODE_SIGN_START_DUPLICATE node=%s task=%s keyID=%s", myNodeID, start.TaskID, start.KeyID)
 		return errors.New("sign already in progress for task")
 	}
 
@@ -409,40 +413,56 @@ var (
 	signSessions   = make(map[string]*signSession)
 	signSessionsMu sync.RWMutex
 	signActiveMu   sync.Mutex
-	signActive     = make(map[string]struct{}) // taskID|nodeID，防止重复 mpcSignStart 起两个 RunSign
+	signActive     = make(map[string]string) // taskID|nodeID -> keyID，防止重复 mpcSignStart
+	signKeyActive  = make(map[string]string) // keyID|nodeID -> taskID，同 key 同节点互斥
 )
 
-func beginSignTask(taskID, nodeID string) bool {
-	key := signSessionKey(taskID, nodeID)
-	signActiveMu.Lock()
-	defer signActiveMu.Unlock()
-	if _, ok := signActive[key]; ok {
+func signKeyLockKey(keyID, nodeID string) string {
+	return keyID + "|" + nodeID
+}
+
+func beginSignTask(taskID, nodeID, keyID string) bool {
+	if taskID == "" || nodeID == "" || keyID == "" {
 		return false
 	}
-	signActive[key] = struct{}{}
+	taskKey := signSessionKey(taskID, nodeID)
+	keyLock := signKeyLockKey(keyID, nodeID)
+	signActiveMu.Lock()
+	defer signActiveMu.Unlock()
+	if _, ok := signActive[taskKey]; ok {
+		return false
+	}
+	if busy, ok := signKeyActive[keyLock]; ok && busy != taskID {
+		return false
+	}
+	signActive[taskKey] = keyID
+	signKeyActive[keyLock] = taskID
 	return true
 }
 
 func endSignTask(taskID, nodeID string) {
-	key := signSessionKey(taskID, nodeID)
-	signActiveMu.Lock()
-	delete(signActive, key)
-	signActiveMu.Unlock()
-}
-
-func activeSignTaskForNode(nodeID string) string {
-	if nodeID == "" {
-		return ""
-	}
-	suffix := "|" + nodeID
+	taskKey := signSessionKey(taskID, nodeID)
 	signActiveMu.Lock()
 	defer signActiveMu.Unlock()
-	for key := range signActive {
-		if strings.HasSuffix(key, suffix) {
-			return strings.TrimSuffix(key, suffix)
-		}
+	keyID, ok := signActive[taskKey]
+	if !ok {
+		return
 	}
-	return ""
+	delete(signActive, taskKey)
+	keyLock := signKeyLockKey(keyID, nodeID)
+	if signKeyActive[keyLock] == taskID {
+		delete(signKeyActive, keyLock)
+	}
+}
+
+// activeSignTaskForKey 返回同 node 上占用该 keyID 的活跃 sign task；不同 keyID 可并行。
+func activeSignTaskForKey(nodeID, keyID string) string {
+	if nodeID == "" || keyID == "" {
+		return ""
+	}
+	signActiveMu.Lock()
+	defer signActiveMu.Unlock()
+	return signKeyActive[signKeyLockKey(keyID, nodeID)]
 }
 
 func signSessionKey(taskID, nodeID string) string {

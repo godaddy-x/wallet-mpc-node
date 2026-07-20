@@ -46,8 +46,8 @@ github.com/godaddy-x/eccrypto v1.1.17 h1:2IQpJoGaRzCqMU+9Dzt3wLeTrY/TRzC5CtQxKvK
 github.com/godaddy-x/eccrypto v1.1.17/go.mod h1:yF2UZDeOaJ8U3DfmdaDP4by7Vr7SaWRpZ3d4zOczoUw=
 github.com/godaddy-x/freego v1.1.28 h1:ghjE6amsRjvGeHfVqwqXuWC+23U5Q+tX06cbEhMlQO0=
 github.com/godaddy-x/freego v1.1.28/go.mod h1:sO6K//AIcu5FZ2GpaV5hR6FnnIX0F/2+9sYU7Yjz6WU=
-github.com/godaddy-x/wallet-adapter v1.0.8 h1:BiVzbWlKTq0o/HW/UvBEtWqh7S25H7buI3gS8u8klL4=
-github.com/godaddy-x/wallet-adapter v1.0.8/go.mod h1:l2+ywGX+Ti+YCUc7rwZKUcKcqAwR6e6Qw2hcerHj/TQ=
+github.com/godaddy-x/wallet-adapter v1.0.9 h1:RbC3OoMxEzXYv3+fZ5d7Vi/hoU6E0BVPgXBK+YUBoGQ=
+github.com/godaddy-x/wallet-adapter v1.0.9/go.mod h1:l2+ywGX+Ti+YCUc7rwZKUcKcqAwR6e6Qw2hcerHj/TQ=
 github.com/golang/protobuf v1.5.4 h1:i7eJL8qZTpSEXOPTxNKhASYpMn+8e5Q6AdndVa1dWek=
 github.com/golang/protobuf v1.5.4/go.mod h1:lnTiLA8Wa4RWRcIUkrtSVa5nRhsEGBg48fD6rSs7xps=
 github.com/golang/snappy v0.0.4 h1:yAGX7huGHXlcLOEtBnF4w7FQwA26wojNCwOYAEhLjQM=
