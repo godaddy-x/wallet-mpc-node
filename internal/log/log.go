@@ -78,6 +78,14 @@ func Signf(format string, args ...interface{}) {
 	}
 }
 
+// SignTimingf logs sign latency at debug level.
+func SignTimingf(format string, args ...interface{}) {
+	msg := strings.TrimRight(fmt.Sprintf("[mpc-sign][timing] "+format, args...), "\r\n")
+	if zlog.IsDebug() {
+		zlog.Debug(msg, 0)
+	}
+}
+
 // SignErrf logs MPC sign trace and error events.
 func SignErrf(format string, args ...interface{}) {
 	msg := strings.TrimRight(fmt.Sprintf("[mpc-sign] "+format, args...), "\r\n")

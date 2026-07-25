@@ -399,8 +399,12 @@ func DeliverKeygenMsg(wsClient *sdk.SocketSDK, myNodeID, router string, body []b
 
 // ============ 以下是你原有的业务逻辑（未改动，仅保留上下文） ============
 
-// RunKeygenNodeRealByAlg 按算法运行一次本节点的 keygen 协议（CGGMP / Alice）。
+// RunKeygenNodeRealByAlg 按算法运行一次本节点的 keygen 协议（CGGMP / FROST / 单签）。
 func RunKeygenNodeRealByAlg(start types.CliMPCKeygenStartRes, myNodeID string, wsClient *sdk.SocketSDK, session *keygenSession) (keyID string, err error) {
+	if isSingleKeygenStart(start) {
+		kid, _, genErr := runSingleKeygenLocal(start, myNodeID)
+		return kid, genErr
+	}
 	switch mpc.Algorithm(start.Algorithm) {
 	case mpc.AlgECDSA:
 		return runKeygenNodeECDSA(start, myNodeID, wsClient, session)
@@ -499,6 +503,21 @@ func HandleKeygenStart(wsClient *sdk.SocketSDK, myNodeID, router string, body []
 
 	log.Keygenf("node=%s task=%s start, alg=%s threshold=%d, nodes=%v\n",
 		myNodeID, start.TaskID, start.Algorithm, start.Threshold, start.NodeIDs)
+
+	if isSingleKeygenStart(start) {
+		if !beginKeygenTask(start.TaskID, myNodeID) {
+			log.Keygenf("node=%s task=%s duplicate mpcKeygenStart rejected\n", myNodeID, start.TaskID)
+			return errors.New("keygen already in progress for task")
+		}
+		go func() {
+			defer func() {
+				endKeygenTask(start.TaskID, myNodeID)
+				tempkey.ClearKeygenSessionKeys(myNodeID, start.TaskID, start.NodeIDs)
+			}()
+			_ = runSingleKeygen(start, myNodeID, wsClient)
+		}()
+		return nil
+	}
 
 	sortedIDs := mpc.SortedNodeIDs(start.NodeIDs)
 	myIndex := mpc.IndexOf(sortedIDs, myNodeID)

@@ -7,8 +7,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/godaddy-x/wallet-mpc-node/internal/log"
-	"github.com/godaddy-x/wallet-mpc-node/internal/tempkey"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -17,6 +15,8 @@ import (
 	ecc "github.com/godaddy-x/eccrypto"
 	"github.com/godaddy-x/freego/utils"
 	"github.com/godaddy-x/freego/utils/sdk"
+	"github.com/godaddy-x/wallet-mpc-node/internal/log"
+	"github.com/godaddy-x/wallet-mpc-node/internal/tempkey"
 	"github.com/godaddy-x/wallet-mpc-node/mpc"
 	"github.com/godaddy-x/wallet-mpc-node/types"
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -81,7 +81,7 @@ func markSignMsgProcessed(taskID, myNodeID string, fromIndex int, isBroadcast bo
 	signMsgDedup.Add(signMsgDedupKey(taskID, myNodeID, fromIndex, isBroadcast, wireB64), struct{}{})
 }
 
-// RunSignNodeRealByAlg 按算法执行本节点的 CGGMP 签名逻辑。
+// RunSignNodeRealByAlg 按算法执行本节点的签名逻辑（MPC 或单签）。
 func RunSignNodeRealByAlg(
 	start types.CliMPCSignStartRes,
 	myNodeID string,
@@ -90,6 +90,10 @@ func RunSignNodeRealByAlg(
 ) (signatureHex string, needRefreshWarm bool, materialUseCount int, err error) {
 	if start.RefreshWarmOnly {
 		return "", false, 0, errors.New("RefreshWarmOnly task must use warm handler, not sign")
+	}
+	if isSingleSignStart(start) {
+		sig, _, signErr := runSingleSignLocal(start, myNodeID)
+		return sig, false, 0, signErr
 	}
 	switch mpc.Algorithm(start.Algorithm) {
 	case mpc.AlgECDSA:
@@ -195,6 +199,44 @@ func HandleSignStart(wsClient *sdk.SocketSDK, myNodeID, router string, body []by
 
 	log.SignErrf("TRACE_NODE_SIGN_START_RECEIVED node=%s task=%s alg=%s keyID=%s threshold=%d warmOnly=%t allNodes=%v signNodes=%v",
 		myNodeID, start.TaskID, start.Algorithm, start.KeyID, start.Threshold, start.RefreshWarmOnly, start.AllNodeIDs, start.SignNodeIDs)
+
+	if isSingleSignStart(start) {
+		if start.RefreshWarmOnly {
+			return errors.New("RefreshWarmOnly not supported for single sign")
+		}
+		if start.KeyID == "" {
+			return errors.New("mpc sign task keyID is empty")
+		}
+		if busyTask := activeSignTaskForKey(myNodeID, start.KeyID); busyTask != "" && busyTask != start.TaskID {
+			if old := getSignSession(busyTask, myNodeID); old == nil || old.isClosed() {
+				log.SignErrf("TRACE_NODE_SIGN_START_CLEAR_STALE node=%s keyID=%s busy=%s new=%s", myNodeID, start.KeyID, busyTask, start.TaskID)
+				endSignTask(busyTask, myNodeID)
+			} else {
+				errMsg := fmt.Sprintf("sign already in progress on node for key (active task %s)", busyTask)
+				log.SignErrf("TRACE_NODE_SIGN_START_BUSY node=%s task=%s keyID=%s active=%s", myNodeID, start.TaskID, start.KeyID, busyTask)
+				req := &types.CliMPCSignResultReq{
+					TaskID: start.TaskID,
+					NodeID: myNodeID,
+					KeyID:  start.KeyID,
+					Err:    errMsg,
+				}
+				_ = submitSignResultWithRetry(wsClient, myNodeID, req, 3)
+				return errors.New(errMsg)
+			}
+		}
+		if !beginSignTask(start.TaskID, myNodeID, start.KeyID) {
+			log.SignErrf("TRACE_NODE_SIGN_START_DUPLICATE node=%s task=%s keyID=%s", myNodeID, start.TaskID, start.KeyID)
+			return errors.New("sign already in progress for task")
+		}
+		go func() {
+			defer func() {
+				endSignTask(start.TaskID, myNodeID)
+				tempkey.ClearSignSessionKeys(myNodeID, start.TaskID, start.AllNodeIDs)
+			}()
+			_ = runSingleSign(start, myNodeID, wsClient)
+		}()
+		return nil
+	}
 
 	if start.RefreshWarmOnly && mpc.Algorithm(start.Algorithm) == mpc.AlgEd25519 {
 		return errors.New("RefreshWarmOnly not supported for ed25519")
