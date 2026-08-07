@@ -133,7 +133,7 @@ Manual example (linux/amd64):
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o output/wallet-mpc-node-linux-amd64 ./cmd/wallet-mpc-node
 ```
 
-**Run** (one config per node, e.g. `cli_node0.json`):
+**Run** (one config per node, e.g. `cli_node0.json`; instance count = broker `walletMode`: **1** / **2** (2-of-2) / **3** (2-of-3) / **5** (3-of-5)):
 
 ```bash
 ./wallet-mpc-node -config=cli_node0.json

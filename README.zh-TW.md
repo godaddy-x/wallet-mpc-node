@@ -127,7 +127,7 @@ chmod +x build_release.sh && ./build_release.sh   # Linux / macOS
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o output/wallet-mpc-node-linux-amd64 ./cmd/wallet-mpc-node
 ```
 
-**執行**（每節點一份設定，如 `cli_node0.json`）：
+**執行**（每節點一份設定，如 `cli_node0.json`；實例數量 = broker `walletMode`：**1** / **2**（2-of-2）/ **3**（2-of-3）/ **5**（3-of-5））：
 
 ```bash
 ./wallet-mpc-node -config=cli_node0.json

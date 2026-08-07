@@ -19,7 +19,7 @@ func IndexOf(sorted []string, nodeID string) int {
 	return -1
 }
 
-// ThresholdFromNodeCount walletMode 1→1, 3→2, 5→3。
+// ThresholdFromNodeCount walletMode 1→1, 2→2, 3→2, 5→3。
 func ThresholdFromNodeCount(n int) uint32 {
 	if n <= 1 {
 		return 1

@@ -8,7 +8,7 @@ require (
 	github.com/getamis/alice v1.0.7
 	github.com/getamis/sirius v1.1.7
 	github.com/godaddy-x/eccrypto v1.1.17
-	github.com/godaddy-x/freego v1.1.28
+	github.com/godaddy-x/freego v1.1.30
 	github.com/godaddy-x/wallet-adapter v1.0.9
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/mailru/easyjson v0.9.1
