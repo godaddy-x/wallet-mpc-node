@@ -94,12 +94,14 @@ func tryNodeLogin(wsClient *sdk.SocketSDK, cliConfig connect.SdkConfig) bool {
 }
 
 // Run connects to the broker WebSocket and handles MPC push routes.
-func Run(cliConfig connect.SdkConfig) error {
+// The returned stop closes the SDK (disables reconnect and tears down the WS).
+func Run(cliConfig connect.SdkConfig) (stop func(), err error) {
 	wsClient := sdk.NewSocketSDK(cliConfig.Domain)
 	wsClient.SetClientNo(cliConfig.ClientNo)
 	_ = wsClient.SetMLDSA87Object(cliConfig.ClientNo, cliConfig.ClientPrk, cliConfig.ServerPub)
 	wsClient.SetBroadcastKey(cliConfig.BroadcastKey)
 	wsClient.EnableReconnect()
+	stop = func() { wsClient.Close() }
 
 	wsClient.SetTokenExpiredCallback(func() {
 		tryNodeLogin(wsClient, cliConfig)
@@ -145,7 +147,8 @@ func Run(cliConfig connect.SdkConfig) error {
 
 	if err := wsClient.ConnectWebSocket(); err != nil {
 		logBrokerError("broker websocket connect failed", cliConfig, err)
-		return err
+		stop()
+		return nil, err
 	}
 
 	if wsClient.IsWebSocketConnected() {
@@ -176,5 +179,5 @@ func Run(cliConfig connect.SdkConfig) error {
 		}
 	}()
 
-	return nil
+	return stop, nil
 }

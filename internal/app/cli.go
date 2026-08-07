@@ -38,7 +38,7 @@ func Run() {
 		return
 	}
 
-	if _, err := LaunchMPCNode(*configFile, *logLevel, *logConsole, *logDir, *keysDir); err != nil {
+	if _, _, err := LaunchMPCNode(*configFile, *logLevel, *logConsole, *logDir, *keysDir); err != nil {
 		fmt.Fprintf(os.Stderr, "node launch failed: %v\n", err)
 		os.Exit(1)
 	}

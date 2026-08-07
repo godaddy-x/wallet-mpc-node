@@ -15,23 +15,24 @@ import (
 )
 
 // LaunchMPCNode loads config, initializes logging/keystore, and connects to the broker.
-func LaunchMPCNode(configPath, logLevel string, console bool, logDir, keysDirFlag string) (source string, err error) {
+// stop closes the broker WebSocket client; callers that outlive a single process (mobile) must keep it.
+func LaunchMPCNode(configPath, logLevel string, console bool, logDir, keysDirFlag string) (source string, stop func(), err error) {
 	cliConfig, err := config.LoadNodeConfigFile(configPath)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	config.SetShardKeysDir(config.ResolveShardKeysDir(keysDirFlag, cliConfig.ShardKeysDir))
 	if err := config.InitKeystoreEncryption(cliConfig); err != nil {
-		return cliConfig.Source, err
+		return cliConfig.Source, nil, err
 	}
 	nodelog.InitNodeLog(cliConfig.Source, logLevel, console, logDir)
-	err = broker.Run(cliConfig)
+	stop, err = broker.Run(cliConfig)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "node failed to start source=%s: %v\n", cliConfig.Source, err)
 	} else {
 		fmt.Printf("node started (source=%s, waiting for server if not connected yet)\n", cliConfig.Source)
 	}
-	return cliConfig.Source, err
+	return cliConfig.Source, stop, err
 }
 
 // LaunchMPCNodeForTest starts a node for integration tests (info log, cwd log dir).
@@ -40,7 +41,7 @@ func LaunchMPCNodeForTest(configPath string) {
 	if err != nil {
 		panic("LaunchMPCNodeForTest: cannot get working directory: " + err.Error())
 	}
-	_, _ = LaunchMPCNode(configPath, "info", true, wd, config.DefaultShardKeysDir)
+	_, _, _ = LaunchMPCNode(configPath, "info", true, wd, config.DefaultShardKeysDir)
 }
 
 // MigrateShardKeysDir encrypts plaintext shards under keysdir and exits.
