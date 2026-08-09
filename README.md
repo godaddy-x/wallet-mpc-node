@@ -139,7 +139,7 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o out
 **Android AAR** (gomobile, for Flutter / native Android):
 
 ```bash
-# Requires Android SDK + NDK (API 19+), Java 17+
+# Requires Android SDK + NDK, Java 17+ (gomobile -androidapi 34 with NDK r26+)
 export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/26.1.10909125"
 chmod +x build_mobile.sh
 ./build_mobile.sh

@@ -11,6 +11,7 @@ permissions:
 env:
   ANDROID_NDK_VERSION: "26.1.10909125"
   ANDROID_PLATFORM_VERSION: "34"
+  ANDROID_API_LEVEL: "34"
 
 jobs:
   build-cli:
@@ -75,6 +76,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y build-essential
 
       - name: Build Android AAR (gomobile)
+        env:
+          ANDROID_API_LEVEL: ${{ env.ANDROID_API_LEVEL }}
         run: |
           bash build_mobile.sh
           test -f output/wallet-mpc-node.aar
