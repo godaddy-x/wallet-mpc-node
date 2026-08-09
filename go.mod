@@ -65,6 +65,9 @@ require (
 
 replace github.com/btcsuite/btcd => github.com/btcsuite/btcd v0.22.1
 
-tool golang.org/x/mobile/cmd/gobind
+tool (
+	golang.org/x/mobile/cmd/gobind
+	golang.org/x/mobile/cmd/gomobile
+)
 
 exclude google.golang.org/genproto v0.0.0-20220819174105-e9f053255caa

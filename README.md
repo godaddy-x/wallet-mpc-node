@@ -62,7 +62,8 @@ Keygen and Sign are routed by the **`algorithm`** field on broker session types 
 │   ├── hd/                          # HD derivation
 │   ├── ecdsa/, ed25519/             # on-chain verify helpers
 ├── build_release.bat, build_release.sh
-└── .github/workflows/release.yml   # tag → Release + SHA256SUMS
+├── build_mobile.sh                  # gomobile → Android AAR (local / CI)
+└── .github/workflows/release.yml   # tag → Release + SHA256SUMS + AAR
 ```
 
 ## Official releases
@@ -76,6 +77,7 @@ Download pre-built binaries **only** from **[GitHub Releases](https://github.com
 | `wallet-mpc-node-darwin-amd64` | macOS Intel (x86_64) |
 | `wallet-mpc-node-darwin-arm64` | macOS Apple Silicon (ARM64) |
 | `wallet-mpc-node-windows-amd64.exe` | Windows x86_64 |
+| `wallet-mpc-node.aar` | Android library (gomobile `mobile/`) |
 | `SHA256SUMS` | SHA-256 checksums for all binaries above |
 
 **Verify** before deployment:
@@ -86,8 +88,9 @@ sha256sum -c --ignore-missing SHA256SUMS
 ```
 
 ```powershell
-# Windows — compare with the line for wallet-mpc-node-windows-amd64.exe in SHA256SUMS
+# Windows — compare with the matching line in SHA256SUMS
 Get-FileHash .\wallet-mpc-node-windows-amd64.exe -Algorithm SHA256
+Get-FileHash .\wallet-mpc-node.aar -Algorithm SHA256
 ```
 
 Maintainers — publish a release:
@@ -132,6 +135,18 @@ Manual example (linux/amd64):
 ```bash
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o output/wallet-mpc-node-linux-amd64 ./cmd/wallet-mpc-node
 ```
+
+**Android AAR** (gomobile, for Flutter / native Android):
+
+```bash
+# Requires Android SDK + NDK (API 19+), Java 17+
+export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/26.1.10909125"
+chmod +x build_mobile.sh
+./build_mobile.sh
+# -> output/wallet-mpc-node.aar
+```
+
+Tag releases also publish `wallet-mpc-node.aar` on GitHub Releases (version is the Release tag, not the filename).
 
 **Run** (one config per node, e.g. `cli_node0.json`; instance count = broker `walletMode`: **1** / **2** (2-of-2) / **3** (2-of-3) / **5** (3-of-5)):
 
