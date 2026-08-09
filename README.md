@@ -146,7 +146,7 @@ chmod +x build_mobile.sh
 # -> output/wallet-mpc-node.aar
 ```
 
-Tag releases also publish `wallet-mpc-node.aar` on GitHub Releases (version is the Release tag, not the filename).
+Tag releases also publish `wallet-mpc-node.aar` on GitHub Releases (version is the Release tag, not the filename). The AAR ships **arm64 + x86_64 (amd64)** ABIs for devices and emulators; 32-bit `arm`/`386` are omitted because `freego` v1.1.30 does not compile on 32-bit Android.
 
 **Run** (one config per node, e.g. `cli_node0.json`; instance count = broker `walletMode`: **1** / **2** (2-of-2) / **3** (2-of-3) / **5** (3-of-5)):
 

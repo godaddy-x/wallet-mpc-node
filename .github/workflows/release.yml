@@ -12,6 +12,7 @@ env:
   ANDROID_NDK_VERSION: "26.1.10909125"
   ANDROID_PLATFORM_VERSION: "34"
   ANDROID_API_LEVEL: "34"
+  ANDROID_TARGETS: "android/arm64,android/amd64"
 
 jobs:
   build-cli:
@@ -33,7 +34,7 @@ jobs:
         run: bash build_release.sh
 
       - name: Upload CLI artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cli-binaries
           path: output/
@@ -78,12 +79,13 @@ jobs:
       - name: Build Android AAR (gomobile)
         env:
           ANDROID_API_LEVEL: ${{ env.ANDROID_API_LEVEL }}
+          ANDROID_TARGETS: ${{ env.ANDROID_TARGETS }}
         run: |
           bash build_mobile.sh
           test -f output/wallet-mpc-node.aar
 
       - name: Upload AAR artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mobile-aar
           path: output/wallet-mpc-node.aar
@@ -93,13 +95,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download CLI artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: cli-binaries
           path: release
 
       - name: Download AAR artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: mobile-aar
           path: release

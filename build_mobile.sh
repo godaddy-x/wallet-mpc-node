@@ -6,6 +6,8 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 OUT="$ROOT/output"
 AAR_NAME="${AAR_NAME:-wallet-mpc-node.aar}"
 ANDROID_API_LEVEL="${ANDROID_API_LEVEL:-34}"
+# 64-bit ABIs only: freego v1.1.30 ormx/sqld does not compile on 32-bit Android (int overflow).
+ANDROID_TARGETS="${ANDROID_TARGETS:-android/arm64,android/amd64}"
 
 if [[ -z "${MOBILE_VERSION:-}" ]]; then
   MOBILE_VERSION="$(go list -m -f '{{.Version}}' golang.org/x/mobile 2>/dev/null || true)"
@@ -48,9 +50,9 @@ go install "golang.org/x/mobile/cmd/gobind@${MOBILE_VERSION}"
 echo "--- gomobile init ---"
 gomobile init
 
-echo "--- gomobile bind android (api ${ANDROID_API_LEVEL}) -> ${OUT}/${AAR_NAME} ---"
+echo "--- gomobile bind ${ANDROID_TARGETS} (api ${ANDROID_API_LEVEL}) -> ${OUT}/${AAR_NAME} ---"
 cd "$ROOT"
-gomobile bind -target=android -androidapi="${ANDROID_API_LEVEL}" -o "${OUT}/${AAR_NAME}" ./mobile
+gomobile bind -target="${ANDROID_TARGETS}" -androidapi="${ANDROID_API_LEVEL}" -o "${OUT}/${AAR_NAME}" ./mobile
 
 if [[ ! -f "${OUT}/${AAR_NAME}" ]]; then
   echo "gomobile bind finished but ${OUT}/${AAR_NAME} is missing" >&2
