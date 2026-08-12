@@ -22,8 +22,9 @@ func Version() string {
 }
 
 // StartNode launches the MPC node in a background goroutine.
-// configJSON is the full cli_node.json content; dataDir is the app sandbox directory
-// (config file and shard keys are stored under dataDir).
+// configJSON may include keystoreKey and clientPrk for in-memory env injection;
+// the on-disk cli_node.json is written without those fields (prod shape).
+// dataDir is the app sandbox directory (config file and shard keys under dataDir).
 // Returns empty string on success, or an error message.
 // If a node is already running, returns empty string (no-op). Call StopNode first to restart.
 func StartNode(configJSON string, dataDir string) string {
@@ -44,11 +45,17 @@ func StartNode(configJSON string, dataDir string) string {
 		mu.Unlock()
 		return err.Error()
 	}
-	cfgPath := filepath.Join(dataDir, "cli_node.json")
-	if err := os.WriteFile(cfgPath, []byte(configJSON), 0o600); err != nil {
+	redactedJSON, secrets, err := prepareMobileNodeConfig(configJSON)
+	if err != nil {
 		mu.Unlock()
 		return err.Error()
 	}
+	cfgPath := filepath.Join(dataDir, "cli_node.json")
+	if err := os.WriteFile(cfgPath, redactedJSON, 0o600); err != nil {
+		mu.Unlock()
+		return err.Error()
+	}
+	applyMobileNodeSecrets(secrets)
 	keysDir := filepath.Join(dataDir, "keys")
 	if err := os.MkdirAll(keysDir, 0o700); err != nil {
 		mu.Unlock()
@@ -97,6 +104,7 @@ func StopNode() {
 	stopFn = nil
 	running = false
 	mu.Unlock()
+	clearMobileNodeSecrets()
 	if stop != nil {
 		stop()
 	}

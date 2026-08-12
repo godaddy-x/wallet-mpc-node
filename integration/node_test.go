@@ -36,3 +36,8 @@ func TestRunNode2(t *testing.T) {
 	app.LaunchMPCNodeForTest("cli_node2.json")
 	blockUntilStop(t)
 }
+
+func TestRunNode3(t *testing.T) {
+	app.LaunchMPCNodeForTest("cli_node3.json")
+	blockUntilStop(t)
+}
