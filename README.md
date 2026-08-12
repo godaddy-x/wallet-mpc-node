@@ -62,7 +62,8 @@ Keygen and Sign are routed by the **`algorithm`** field on broker session types 
 │   ├── hd/                          # HD derivation
 │   ├── ecdsa/, ed25519/             # on-chain verify helpers
 ├── build_release.bat, build_release.sh
-├── build_mobile.sh                  # gomobile → Android AAR (local / CI)
+├── build_mobile.sh                  # gomobile → single-ABI AAR
+├── build_mobile_all.sh              # arm64 + x86_64 AARs (CI / release)
 └── .github/workflows/release.yml   # tag → Release + SHA256SUMS + AAR
 ```
 
@@ -77,7 +78,8 @@ Download pre-built binaries **only** from **[GitHub Releases](https://github.com
 | `wallet-mpc-node-darwin-amd64` | macOS Intel (x86_64) |
 | `wallet-mpc-node-darwin-arm64` | macOS Apple Silicon (ARM64) |
 | `wallet-mpc-node-windows-amd64.exe` | Windows x86_64 |
-| `wallet-mpc-node.aar` | Android library (gomobile `mobile/`) |
+| `wallet-mpc-node-arm64.aar` | Android **arm64-v8a** (physical devices) |
+| `wallet-mpc-node-x86_64.aar` | Android **x86_64** (emulators) |
 | `SHA256SUMS` | SHA-256 checksums for all binaries above |
 
 **Verify** before deployment:
@@ -90,7 +92,8 @@ sha256sum -c --ignore-missing SHA256SUMS
 ```powershell
 # Windows — compare with the matching line in SHA256SUMS
 Get-FileHash .\wallet-mpc-node-windows-amd64.exe -Algorithm SHA256
-Get-FileHash .\wallet-mpc-node.aar -Algorithm SHA256
+Get-FileHash .\wallet-mpc-node-arm64.aar -Algorithm SHA256
+Get-FileHash .\wallet-mpc-node-x86_64.aar -Algorithm SHA256
 ```
 
 Maintainers — publish a release:
@@ -141,12 +144,26 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o out
 ```bash
 # Requires Android SDK + NDK, Java 17+ (gomobile -androidapi 34 with NDK r26+)
 export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/26.1.10909125"
-chmod +x build_mobile.sh
-./build_mobile.sh
-# -> output/wallet-mpc-node.aar
+chmod +x build_mobile.sh build_mobile_all.sh
+
+# Both variants (CI / release)
+./build_mobile_all.sh
+# -> output/wallet-mpc-node-arm64.aar      (devices)
+# -> output/wallet-mpc-node-x86_64.aar     (emulators)
+
+# Single ABI
+ANDROID_TARGETS=android/arm64 ./build_mobile.sh   # -> wallet-mpc-node-arm64.aar
+ANDROID_TARGETS=android/amd64 ./build_mobile.sh   # -> wallet-mpc-node-x86_64.aar
 ```
 
-Tag releases also publish `wallet-mpc-node.aar` on GitHub Releases (version is the Release tag, not the filename). The AAR ships **arm64 + x86_64 (amd64)** ABIs for devices and emulators; 32-bit `arm`/`386` are omitted because `freego` v1.1.30 does not compile on 32-bit Android.
+Tag releases publish **two** AARs (one ABI each). Pick by target:
+
+| AAR | gomobile target | Use when |
+|-----|-----------------|----------|
+| `wallet-mpc-node-arm64.aar` | `android/arm64` | Physical phones / tablets |
+| `wallet-mpc-node-x86_64.aar` | `android/amd64` | Android emulator (x86_64) |
+
+32-bit `arm` / `386` are omitted because `freego` v1.1.30 does not compile on 32-bit Android.
 
 **Run** (one config per node, e.g. `cli_node0.json`; instance count = broker `walletMode`: **1** / **2** (2-of-2) / **3** (2-of-3) / **5** (3-of-5)):
 

@@ -1,13 +1,28 @@
 #!/bin/bash
-# Build wallet-mpc-node/mobile as an Android AAR via gomobile.
+# Build wallet-mpc-node/mobile as an Android AAR via gomobile (single ABI per invocation).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 OUT="$ROOT/output"
-AAR_NAME="${AAR_NAME:-wallet-mpc-node.aar}"
 ANDROID_API_LEVEL="${ANDROID_API_LEVEL:-34}"
 # 64-bit ABIs only: freego v1.1.30 ormx/sqld does not compile on 32-bit Android (int overflow).
-ANDROID_TARGETS="${ANDROID_TARGETS:-android/arm64,android/amd64}"
+ANDROID_TARGETS="${ANDROID_TARGETS:-android/arm64}"
+
+default_aar_name() {
+  case "${1}" in
+    android/arm64) echo "wallet-mpc-node-arm64.aar" ;;
+    android/amd64) echo "wallet-mpc-node-x86_64.aar" ;;
+    *) echo "wallet-mpc-node.aar" ;;
+  esac
+}
+
+if [[ "${ANDROID_TARGETS}" == *","* ]]; then
+  echo "ANDROID_TARGETS must be a single ABI (got: ${ANDROID_TARGETS})" >&2
+  echo "Use: bash build_mobile_all.sh" >&2
+  exit 1
+fi
+
+AAR_NAME="${AAR_NAME:-$(default_aar_name "${ANDROID_TARGETS}")}"
 
 if [[ -z "${MOBILE_VERSION:-}" ]]; then
   MOBILE_VERSION="$(go list -m -f '{{.Version}}' golang.org/x/mobile 2>/dev/null || true)"

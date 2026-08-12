@@ -56,7 +56,8 @@ Keygen / Sign 由 broker 会话类型的 **`algorithm`** 字段路由（`ecdsa` 
 │   ├── hd/                          # HD 派生
 │   ├── ecdsa/, ed25519/             # 链上验签
 ├── build_release.bat, build_release.sh
-├── build_mobile.sh                  # gomobile → Android AAR（本地 / CI）
+├── build_mobile.sh                  # gomobile → 单 ABI AAR
+├── build_mobile_all.sh              # arm64 + x86_64 两个 AAR（CI / Release）
 └── .github/workflows/release.yml   # tag → Release + SHA256SUMS + AAR
 ```
 
@@ -71,7 +72,8 @@ Keygen / Sign 由 broker 会话类型的 **`algorithm`** 字段路由（`ecdsa` 
 | `wallet-mpc-node-darwin-amd64` | macOS Intel（x86_64） |
 | `wallet-mpc-node-darwin-arm64` | macOS Apple Silicon（ARM64） |
 | `wallet-mpc-node-windows-amd64.exe` | Windows x86_64 |
-| `wallet-mpc-node.aar` | Android 库（gomobile `mobile/`） |
+| `wallet-mpc-node-arm64.aar` | Android **arm64-v8a**（真机） |
+| `wallet-mpc-node-x86_64.aar` | Android **x86_64**（模拟器） |
 | `SHA256SUMS` | 以上二进制与 AAR 的 SHA-256 校验和 |
 
 **部署前校验：**
@@ -84,7 +86,8 @@ sha256sum -c --ignore-missing SHA256SUMS
 ```powershell
 # Windows — 与 SHA256SUMS 中对应行比对
 Get-FileHash .\wallet-mpc-node-windows-amd64.exe -Algorithm SHA256
-Get-FileHash .\wallet-mpc-node.aar -Algorithm SHA256
+Get-FileHash .\wallet-mpc-node-arm64.aar -Algorithm SHA256
+Get-FileHash .\wallet-mpc-node-x86_64.aar -Algorithm SHA256
 ```
 
 维护者发布版本：

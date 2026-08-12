@@ -12,7 +12,6 @@ env:
   ANDROID_NDK_VERSION: "26.1.10909125"
   ANDROID_PLATFORM_VERSION: "34"
   ANDROID_API_LEVEL: "34"
-  ANDROID_TARGETS: "android/arm64,android/amd64"
 
 jobs:
   build-cli:
@@ -76,19 +75,21 @@ jobs:
       - name: Install host build tools
         run: sudo apt-get update && sudo apt-get install -y build-essential
 
-      - name: Build Android AAR (gomobile)
+      - name: Build Android AARs (gomobile)
         env:
           ANDROID_API_LEVEL: ${{ env.ANDROID_API_LEVEL }}
-          ANDROID_TARGETS: ${{ env.ANDROID_TARGETS }}
         run: |
-          bash build_mobile.sh
-          test -f output/wallet-mpc-node.aar
+          bash build_mobile_all.sh
+          test -f output/wallet-mpc-node-arm64.aar
+          test -f output/wallet-mpc-node-x86_64.aar
 
-      - name: Upload AAR artifact
+      - name: Upload AAR artifacts
         uses: actions/upload-artifact@v7
         with:
           name: mobile-aar
-          path: output/wallet-mpc-node.aar
+          path: |
+            output/wallet-mpc-node-arm64.aar
+            output/wallet-mpc-node-x86_64.aar
 
   release:
     needs: [build-cli, build-mobile-aar]
@@ -115,7 +116,8 @@ jobs:
             wallet-mpc-node-darwin-amd64
             wallet-mpc-node-darwin-arm64
             wallet-mpc-node-windows-amd64.exe
-            wallet-mpc-node.aar
+            wallet-mpc-node-arm64.aar
+            wallet-mpc-node-x86_64.aar
           )
           missing=()
           for f in "${files[@]}"; do
@@ -141,5 +143,6 @@ jobs:
             release/wallet-mpc-node-darwin-amd64
             release/wallet-mpc-node-darwin-arm64
             release/wallet-mpc-node-windows-amd64.exe
-            release/wallet-mpc-node.aar
+            release/wallet-mpc-node-arm64.aar
+            release/wallet-mpc-node-x86_64.aar
             release/SHA256SUMS
