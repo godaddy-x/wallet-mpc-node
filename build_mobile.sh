@@ -5,6 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 OUT="$ROOT/output"
 ANDROID_API_LEVEL="${ANDROID_API_LEVEL:-34}"
+LDFLAGS="${LDFLAGS:--s -w}"
 # 64-bit ABIs only: freego v1.1.30 ormx/sqld does not compile on 32-bit Android (int overflow).
 ANDROID_TARGETS="${ANDROID_TARGETS:-android/arm64}"
 
@@ -67,7 +68,13 @@ gomobile init
 
 echo "--- gomobile bind ${ANDROID_TARGETS} (api ${ANDROID_API_LEVEL}) -> ${OUT}/${AAR_NAME} ---"
 cd "$ROOT"
-gomobile bind -target="${ANDROID_TARGETS}" -androidapi="${ANDROID_API_LEVEL}" -o "${OUT}/${AAR_NAME}" ./mobile
+gomobile bind \
+  -ldflags="${LDFLAGS}" \
+  -trimpath \
+  -target="${ANDROID_TARGETS}" \
+  -androidapi="${ANDROID_API_LEVEL}" \
+  -o "${OUT}/${AAR_NAME}" \
+  ./mobile
 
 if [[ ! -f "${OUT}/${AAR_NAME}" ]]; then
   echo "gomobile bind finished but ${OUT}/${AAR_NAME} is missing" >&2
