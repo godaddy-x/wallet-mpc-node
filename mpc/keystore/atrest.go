@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/godaddy-x/freego/utils"
+	"github.com/godaddy-x/freego/core/str"
 )
 
 const encPrefix = "mpc-keystore-v1:"

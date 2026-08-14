@@ -2,6 +2,6 @@
 package alg_single
 
 const (
-	KeyStoreType   = "single_key"
+	KeyStoreType    = "single_key"
 	ProtocolVersion = "single-v1"
 )

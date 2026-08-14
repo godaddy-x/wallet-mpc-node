@@ -14,8 +14,8 @@ import (
 	"time"
 
 	ecc "github.com/godaddy-x/eccrypto"
-	"github.com/godaddy-x/freego/utils"
-	"github.com/godaddy-x/freego/utils/sdk"
+	"github.com/godaddy-x/freego/client/ws"
+	"github.com/godaddy-x/freego/core/str"
 	"github.com/godaddy-x/wallet-mpc-node/mpc"
 	"github.com/godaddy-x/wallet-mpc-node/mpc/alg_ecdsa"
 	"github.com/godaddy-x/wallet-mpc-node/mpc/alg_ed25519"
@@ -83,7 +83,7 @@ func markKeygenMsgProcessed(taskID, myNodeID string, fromIndex int, isBroadcast 
 	keygenMsgDedup.Add(keygenMsgDedupKey(taskID, myNodeID, fromIndex, isBroadcast, wireB64), struct{}{})
 }
 
-func sendKeygenProtocolMsgWithRetry(wsClient *sdk.SocketSDK, req *types.CliMPCEncryptData, maxAttempts int) error {
+func sendKeygenProtocolMsgWithRetry(wsClient *ws.SDK, req *types.CliMPCEncryptData, maxAttempts int) error {
 	return sendMpcProtocolMsgWithRetry(wsClient, "/ws/mpcKeygenMsg", req, maxAttempts)
 }
 
@@ -310,7 +310,7 @@ func processMessage(s *keygenSession, item recvItem) {
 }
 
 // ============ DeliverKeygenMsg（改造：支持缓存早期消息） ============
-func DeliverKeygenMsg(wsClient *sdk.SocketSDK, myNodeID, router string, body []byte) error {
+func DeliverKeygenMsg(wsClient *ws.SDK, myNodeID, router string, body []byte) error {
 	if len(body) == 0 {
 		return nil
 	}
@@ -400,7 +400,7 @@ func DeliverKeygenMsg(wsClient *sdk.SocketSDK, myNodeID, router string, body []b
 // ============ 以下是你原有的业务逻辑（未改动，仅保留上下文） ============
 
 // RunKeygenNodeRealByAlg 按算法运行一次本节点的 keygen 协议（CGGMP / FROST / 单签）。
-func RunKeygenNodeRealByAlg(start types.CliMPCKeygenStartRes, myNodeID string, wsClient *sdk.SocketSDK, session *keygenSession) (keyID string, err error) {
+func RunKeygenNodeRealByAlg(start types.CliMPCKeygenStartRes, myNodeID string, wsClient *ws.SDK, session *keygenSession) (keyID string, err error) {
 	if isSingleKeygenStart(start) {
 		kid, _, genErr := runSingleKeygenLocal(start, myNodeID)
 		return kid, genErr
@@ -415,7 +415,7 @@ func RunKeygenNodeRealByAlg(start types.CliMPCKeygenStartRes, myNodeID string, w
 	}
 }
 
-func submitKeygenResultWithRetry(wsClient *sdk.SocketSDK, req *types.CliMPCKeygenResultReq, maxAttempts int) error {
+func submitKeygenResultWithRetry(wsClient *ws.SDK, req *types.CliMPCKeygenResultReq, maxAttempts int) error {
 	if wsClient == nil || req == nil {
 		return errors.New("submitKeygenResultWithRetry invalid argument")
 	}
@@ -448,7 +448,7 @@ func submitKeygenResultWithRetry(wsClient *sdk.SocketSDK, req *types.CliMPCKeyge
 
 const maxErrMsgLen = 256
 
-func submitKeygenResultErr(wsClient *sdk.SocketSDK, taskID, nodeID, errMsg string) error {
+func submitKeygenResultErr(wsClient *ws.SDK, taskID, nodeID, errMsg string) error {
 	if len(errMsg) > maxErrMsgLen {
 		errMsg = errMsg[:maxErrMsgLen] + "..."
 	}
@@ -461,7 +461,7 @@ func submitKeygenResultErr(wsClient *sdk.SocketSDK, taskID, nodeID, errMsg strin
 	return nil
 }
 
-func HandleKeygenStart(wsClient *sdk.SocketSDK, myNodeID, router string, body []byte) error {
+func HandleKeygenStart(wsClient *ws.SDK, myNodeID, router string, body []byte) error {
 	if len(body) == 0 {
 		return nil
 	}
@@ -615,5 +615,5 @@ type wsKeygenRouter struct {
 	taskID   string
 	myIndex  int
 	subject  string
-	wsClient *sdk.SocketSDK
+	wsClient *ws.SDK
 }

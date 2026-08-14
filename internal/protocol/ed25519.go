@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/godaddy-x/freego/utils/sdk"
+	"github.com/godaddy-x/freego/client/ws"
 	"github.com/godaddy-x/wallet-mpc-node/mpc"
 	"github.com/godaddy-x/wallet-mpc-node/mpc/alg_ed25519"
 	"github.com/godaddy-x/wallet-mpc-node/types"
@@ -31,7 +31,7 @@ type wsFrostRouter struct {
 	subject   string
 	sortedIDs []string
 	myIndex   int
-	wsClient  *sdk.SocketSDK
+	wsClient  *ws.SDK
 	module    string
 
 	inbox   *alg_ed25519.Inbox
@@ -39,7 +39,7 @@ type wsFrostRouter struct {
 	phase   string
 }
 
-func newWSFrostRouter(taskID, subject, module string, sortedIDs []string, myIndex int, ws *sdk.SocketSDK) *wsFrostRouter {
+func newWSFrostRouter(taskID, subject, module string, sortedIDs []string, myIndex int, ws *ws.SDK) *wsFrostRouter {
 	return &wsFrostRouter{
 		taskID:    taskID,
 		subject:   subject,
@@ -81,7 +81,7 @@ func (r *wsFrostRouter) Receive(fromIndex int, wireBytes []byte) error {
 	return r.inbox.Deliver(fromNodeID, wireB64)
 }
 
-func runKeygenNodeFROST(start types.CliMPCKeygenStartRes, myNodeID string, wsClient *sdk.SocketSDK, session *keygenSession) (keyID string, err error) {
+func runKeygenNodeFROST(start types.CliMPCKeygenStartRes, myNodeID string, wsClient *ws.SDK, session *keygenSession) (keyID string, err error) {
 	router := session.frost
 	if router == nil {
 		return "", errors.New("keygen frost router is nil")
@@ -118,7 +118,7 @@ func runKeygenNodeFROST(start types.CliMPCKeygenStartRes, myNodeID string, wsCli
 	return keyID, nil
 }
 
-func runSignNodeFROST(start types.CliMPCSignStartRes, myNodeID string, wsClient *sdk.SocketSDK, session *signSession) (signatureHex string, needRefreshWarm bool, materialUseCount int, err error) {
+func runSignNodeFROST(start types.CliMPCSignStartRes, myNodeID string, wsClient *ws.SDK, session *signSession) (signatureHex string, needRefreshWarm bool, materialUseCount int, err error) {
 	router := session.frost
 	if router == nil {
 		return "", false, 0, errors.New("sign frost router is nil")

@@ -3,7 +3,7 @@
 package connect
 
 import (
-	"github.com/godaddy-x/freego/utils"
+	"github.com/godaddy-x/freego/core/str"
 )
 
 // SdkConfig 连接钱包服务端所需的 HTTP/WebSocket 与认证参数。

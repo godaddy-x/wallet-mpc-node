@@ -2,7 +2,7 @@
 // Import path: github.com/godaddy-x/wallet-mpc-node/types.
 package types
 
-import "github.com/godaddy-x/freego/node/common"
+import common "github.com/godaddy-x/freego/protocol/dto"
 
 //easyjson:json
 type CliWalletResult struct {

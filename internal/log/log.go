@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/godaddy-x/freego/zlog"
+	"github.com/godaddy-x/freego/infra/zlog"
 )
 
 // InitNodeLog configures zlog after node JSON config is loaded ({source}.log).

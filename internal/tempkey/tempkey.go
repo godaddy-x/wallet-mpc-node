@@ -10,9 +10,9 @@ import (
 	"time"
 
 	ecc "github.com/godaddy-x/eccrypto"
-	"github.com/godaddy-x/freego/cache"
-	"github.com/godaddy-x/freego/utils"
-	"github.com/godaddy-x/freego/utils/sdk"
+	"github.com/godaddy-x/freego/client/ws"
+	"github.com/godaddy-x/freego/core/str"
+	"github.com/godaddy-x/freego/infra/cachelocal"
 	"github.com/godaddy-x/wallet-mpc-node/types"
 )
 
@@ -23,7 +23,7 @@ const (
 
 const mlkem1024EncapsulationKeyBytes = 1568
 
-var keyCache = cache.NewLocalCache()
+var keyCache = cachelocal.NewLocalCache()
 
 func tempPublicKeyCacheKey(mod, subject, taskID string) string {
 	return utils.FNV1a64(utils.AddStr(subject, ":", taskID, ":", mod, ":tempPublicKey"))
@@ -123,7 +123,7 @@ func ClearKeygenSessionKeys(myNodeID, taskID string, allNodeIDs []string) {
 }
 
 // SubmitTempPublicKey reports the node's ML-KEM encapsulation key to the broker.
-func SubmitTempPublicKey(wsClient *sdk.SocketSDK, request *types.CliMPCTempPublicKeyReq, maxAttempts int) error {
+func SubmitTempPublicKey(wsClient *ws.SDK, request *types.CliMPCTempPublicKeyReq, maxAttempts int) error {
 	if wsClient == nil || request == nil {
 		return errors.New("SubmitTempPublicKey invalid argument")
 	}
@@ -155,7 +155,7 @@ func SubmitTempPublicKey(wsClient *sdk.SocketSDK, request *types.CliMPCTempPubli
 }
 
 // HandleTempPublicKey creates a local ML-KEM key pair and uploads the encapsulation key.
-func HandleTempPublicKey(wsClient *sdk.SocketSDK, subject, router string, data []byte) error {
+func HandleTempPublicKey(wsClient *ws.SDK, subject, router string, data []byte) error {
 	request := types.CliMPCTempPublicKeyReq{}
 	if err := json.Unmarshal(data, &request); err != nil {
 		return errors.New("HandleTempPublicKey json unmarshal error: " + err.Error())

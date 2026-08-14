@@ -7,8 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/godaddy-x/freego/utils/sdk"
-	"github.com/godaddy-x/freego/zlog"
+	"github.com/godaddy-x/freego/client/ws"
+	"github.com/godaddy-x/freego/infra/zlog"
+	"github.com/godaddy-x/freego/protocol/wire"
 	"github.com/godaddy-x/wallet-mpc-node/connect"
 	nodelog "github.com/godaddy-x/wallet-mpc-node/internal/log"
 	"github.com/godaddy-x/wallet-mpc-node/internal/protocol"
@@ -55,20 +56,20 @@ func logBrokerError(title string, cliConfig connect.SdkConfig, err error) {
 	zlog.Error(title, 0, fields...)
 }
 
-func nodeLoginAuthToken(cliConfig connect.SdkConfig) (sdk.AuthToken, error) {
+func nodeLoginAuthToken(cliConfig connect.SdkConfig) (wire.AuthToken, error) {
 	nodeID := strings.TrimSpace(cliConfig.Source)
 	if nodeID == "" {
-		return sdk.AuthToken{}, errors.New("node config source is empty (e.g. node0)")
+		return wire.AuthToken{}, errors.New("node config source is empty (e.g. node0)")
 	}
-	loginSdk := sdk.NewSocketSDK(cliConfig.Domain)
+	loginSdk := ws.New(cliConfig.Domain)
 	loginSdk.SetClientNo(cliConfig.ClientNo)
 	if err := loginSdk.SetMLDSA87Object(cliConfig.ClientNo, cliConfig.ClientPrk, cliConfig.ServerPub); err != nil {
-		return sdk.AuthToken{}, err
+		return wire.AuthToken{}, err
 	}
 	defer loginSdk.DisconnectWebSocket()
 
 	req := &types.CliPlan2LoginReq{Source: nodeID}
-	resp := sdk.AuthToken{}
+	resp := wire.AuthToken{}
 	keyPath := strings.TrimSpace(cliConfig.KeyPath)
 	if keyPath == "" {
 		keyPath = "/ws/key"
@@ -78,12 +79,12 @@ func nodeLoginAuthToken(cliConfig connect.SdkConfig) (sdk.AuthToken, error) {
 		loginPath = "/ws/login"
 	}
 	if err := loginSdk.LoginByWebSocketPlan2Auto(keyPath, loginPath, req, &resp, 10); err != nil {
-		return sdk.AuthToken{}, err
+		return wire.AuthToken{}, err
 	}
 	return resp, nil
 }
 
-func tryNodeLogin(wsClient *sdk.SocketSDK, cliConfig connect.SdkConfig) bool {
+func tryNodeLogin(wsClient *ws.SDK, cliConfig connect.SdkConfig) bool {
 	auth, err := nodeLoginAuthToken(cliConfig)
 	if err != nil {
 		logBrokerLoginFailure(cliConfig, err)
@@ -96,7 +97,7 @@ func tryNodeLogin(wsClient *sdk.SocketSDK, cliConfig connect.SdkConfig) bool {
 // Run connects to the broker WebSocket and handles MPC push routes.
 // The returned stop closes the SDK (disables reconnect and tears down the WS).
 func Run(cliConfig connect.SdkConfig) (stop func(), err error) {
-	wsClient := sdk.NewSocketSDK(cliConfig.Domain)
+	wsClient := ws.New(cliConfig.Domain)
 	wsClient.SetClientNo(cliConfig.ClientNo)
 	_ = wsClient.SetMLDSA87Object(cliConfig.ClientNo, cliConfig.ClientPrk, cliConfig.ServerPub)
 	wsClient.SetBroadcastKey(cliConfig.BroadcastKey)

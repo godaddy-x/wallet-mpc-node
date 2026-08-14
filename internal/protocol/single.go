@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/godaddy-x/freego/utils/sdk"
+	"github.com/godaddy-x/freego/client/ws"
 	"github.com/godaddy-x/wallet-mpc-node/internal/config"
 	"github.com/godaddy-x/wallet-mpc-node/internal/log"
 	"github.com/godaddy-x/wallet-mpc-node/mpc"
@@ -21,7 +21,7 @@ func runSingleKeygenLocal(start types.CliMPCKeygenStartRes, myNodeID string) (ke
 	return alg_single.RunKeygen(alg, store, myNodeID)
 }
 
-func runSingleKeygen(start types.CliMPCKeygenStartRes, myNodeID string, wsClient *sdk.SocketSDK) error {
+func runSingleKeygen(start types.CliMPCKeygenStartRes, myNodeID string, wsClient *ws.SDK) error {
 	keyID, rootPubHex, err := runSingleKeygenLocal(start, myNodeID)
 	if err != nil {
 		log.Keygenf("node=%s task=%s single keygen failed: %v\n", myNodeID, start.TaskID, err)
@@ -53,7 +53,7 @@ func runSingleSignLocal(start types.CliMPCSignStartRes, myNodeID string) (signat
 	return sigHex, data.Algorithm, nil
 }
 
-func submitSingleSignErr(wsClient *sdk.SocketSDK, myNodeID string, start types.CliMPCSignStartRes, errMsg string) error {
+func submitSingleSignErr(wsClient *ws.SDK, myNodeID string, start types.CliMPCSignStartRes, errMsg string) error {
 	req := &types.CliMPCSignResultReq{
 		TaskID: start.TaskID,
 		NodeID: myNodeID,
@@ -64,7 +64,7 @@ func submitSingleSignErr(wsClient *sdk.SocketSDK, myNodeID string, start types.C
 	return errors.New(errMsg)
 }
 
-func runSingleSign(start types.CliMPCSignStartRes, myNodeID string, wsClient *sdk.SocketSDK) error {
+func runSingleSign(start types.CliMPCSignStartRes, myNodeID string, wsClient *ws.SDK) error {
 	taskStart := time.Now()
 	if start.KeyID == "" {
 		return submitSingleSignErr(wsClient, myNodeID, start, "mpc sign task keyID is empty")

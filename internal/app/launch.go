@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/godaddy-x/freego/utils/crypto"
+	"github.com/godaddy-x/freego/core/crypto"
 	"github.com/godaddy-x/wallet-mpc-node/internal/broker"
 	"github.com/godaddy-x/wallet-mpc-node/internal/config"
 	nodelog "github.com/godaddy-x/wallet-mpc-node/internal/log"

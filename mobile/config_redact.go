@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/godaddy-x/freego/utils"
+	"github.com/godaddy-x/freego/core/str"
 	"github.com/godaddy-x/wallet-mpc-node/connect"
 )
 

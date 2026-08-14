@@ -7,8 +7,8 @@ import (
 	"sync"
 
 	ecc "github.com/godaddy-x/eccrypto"
-	"github.com/godaddy-x/freego/utils"
-	"github.com/godaddy-x/freego/utils/sdk"
+	"github.com/godaddy-x/freego/client/ws"
+	"github.com/godaddy-x/freego/core/str"
 	"github.com/godaddy-x/wallet-mpc-node/mpc"
 	"github.com/godaddy-x/wallet-mpc-node/types"
 )
@@ -21,7 +21,7 @@ func mpcKeySessionLock(keyID string, participants []string) *sync.Mutex {
 	return v.(*sync.Mutex)
 }
 
-func sendMPCProtocolWire(wsClient *sdk.SocketSDK, taskID, module string, myIndex int, targetNodeID, wireB64 string) error {
+func sendMPCProtocolWire(wsClient *ws.SDK, taskID, module string, myIndex int, targetNodeID, wireB64 string) error {
 	var data []byte
 	var err error
 	switch module {

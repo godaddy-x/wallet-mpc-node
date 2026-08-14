@@ -13,8 +13,8 @@ import (
 	"time"
 
 	ecc "github.com/godaddy-x/eccrypto"
-	"github.com/godaddy-x/freego/utils"
-	"github.com/godaddy-x/freego/utils/sdk"
+	"github.com/godaddy-x/freego/client/ws"
+	"github.com/godaddy-x/freego/core/str"
 	"github.com/godaddy-x/wallet-mpc-node/internal/log"
 	"github.com/godaddy-x/wallet-mpc-node/internal/tempkey"
 	"github.com/godaddy-x/wallet-mpc-node/mpc"
@@ -85,7 +85,7 @@ func markSignMsgProcessed(taskID, myNodeID string, fromIndex int, isBroadcast bo
 func RunSignNodeRealByAlg(
 	start types.CliMPCSignStartRes,
 	myNodeID string,
-	wsClient *sdk.SocketSDK,
+	wsClient *ws.SDK,
 	session *signSession,
 ) (signatureHex string, needRefreshWarm bool, materialUseCount int, err error) {
 	if start.RefreshWarmOnly {
@@ -106,7 +106,7 @@ func RunSignNodeRealByAlg(
 }
 
 func submitSignResultWithRetry(
-	wsClient *sdk.SocketSDK,
+	wsClient *ws.SDK,
 	myNodeID string,
 	req *types.CliMPCSignResultReq,
 	maxAttempts int,
@@ -147,12 +147,12 @@ func submitSignResultWithRetry(
 	return lastErr
 }
 
-func sendSignProtocolMsgWithRetry(wsClient *sdk.SocketSDK, req *types.CliMPCEncryptData, maxAttempts int) error {
+func sendSignProtocolMsgWithRetry(wsClient *ws.SDK, req *types.CliMPCEncryptData, maxAttempts int) error {
 	return sendMpcProtocolMsgWithRetry(wsClient, "/ws/mpcSignMsg", req, maxAttempts)
 }
 
 // HandleSignStart 处理服务端下发的 mpcSignStart Push。
-func HandleSignStart(wsClient *sdk.SocketSDK, myNodeID, router string, body []byte) error {
+func HandleSignStart(wsClient *ws.SDK, myNodeID, router string, body []byte) error {
 	if len(body) == 0 {
 		return nil
 	}
@@ -382,7 +382,7 @@ type wsSignRouter struct {
 	taskID   string
 	myIndex  int
 	subject  string
-	wsClient *sdk.SocketSDK
+	wsClient *ws.SDK
 }
 
 type signSession struct {
@@ -657,7 +657,7 @@ func processSignMessage(s *signSession, item recvItem) {
 }
 
 // DeliverSignMsg 由 Push 回调调用。
-func DeliverSignMsg(wsClient *sdk.SocketSDK, myNodeID, router string, body []byte) error {
+func DeliverSignMsg(wsClient *ws.SDK, myNodeID, router string, body []byte) error {
 	if len(body) == 0 {
 		return nil
 	}

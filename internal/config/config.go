@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/godaddy-x/freego/utils/envoverlay"
+	"github.com/godaddy-x/freego/core/envoverlay"
 	"github.com/godaddy-x/wallet-mpc-node/connect"
 	"github.com/godaddy-x/wallet-mpc-node/mpc/keystore"
 )

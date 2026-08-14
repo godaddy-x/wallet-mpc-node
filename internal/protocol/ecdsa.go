@@ -15,7 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/godaddy-x/freego/utils/sdk"
+	"github.com/godaddy-x/freego/client/ws"
 	"github.com/godaddy-x/wallet-mpc-node/mpc"
 	"github.com/godaddy-x/wallet-mpc-node/mpc/alg_ecdsa"
 	"github.com/godaddy-x/wallet-mpc-node/mpc/hd"
@@ -77,7 +77,7 @@ type wsAliceRouter struct {
 	subject   string
 	sortedIDs []string
 	myIndex   int
-	wsClient  *sdk.SocketSDK
+	wsClient  *ws.SDK
 	module    string // "keygen" | "sign"
 
 	inbox   *alg_ecdsa.Inbox
@@ -86,7 +86,7 @@ type wsAliceRouter struct {
 	phase   string
 }
 
-func newWSAliceRouter(taskID, subject, module string, sortedIDs []string, myIndex int, ws *sdk.SocketSDK) *wsAliceRouter {
+func newWSAliceRouter(taskID, subject, module string, sortedIDs []string, myIndex int, ws *ws.SDK) *wsAliceRouter {
 	return &wsAliceRouter{
 		taskID:    taskID,
 		subject:   subject,
@@ -132,7 +132,7 @@ func (r *wsAliceRouter) Receive(fromIndex int, wireBytes []byte) error {
 	return r.inbox.Deliver(fromNodeID, wireB64)
 }
 
-func runKeygenNodeECDSA(start types.CliMPCKeygenStartRes, myNodeID string, wsClient *sdk.SocketSDK, session *keygenSession) (keyID string, err error) {
+func runKeygenNodeECDSA(start types.CliMPCKeygenStartRes, myNodeID string, wsClient *ws.SDK, session *keygenSession) (keyID string, err error) {
 	if session == nil || session.alice == nil {
 		return "", errors.New("keygen session is nil")
 	}
@@ -171,7 +171,7 @@ func runKeygenNodeECDSA(start types.CliMPCKeygenStartRes, myNodeID string, wsCli
 	return keyID, nil
 }
 
-func runWarmRefreshNodeECDSA(start types.CliMPCSignStartRes, myNodeID string, wsClient *sdk.SocketSDK, session *signSession) error {
+func runWarmRefreshNodeECDSA(start types.CliMPCSignStartRes, myNodeID string, wsClient *ws.SDK, session *signSession) error {
 	if session == nil || session.alice == nil {
 		return errors.New("warm session is nil")
 	}
@@ -216,7 +216,7 @@ func runWarmRefreshNodeECDSA(start types.CliMPCSignStartRes, myNodeID string, ws
 	return nil
 }
 
-func runSignNodeECDSA(start types.CliMPCSignStartRes, myNodeID string, wsClient *sdk.SocketSDK, session *signSession) (signatureHex string, needRefreshWarm bool, materialUseCount int, err error) {
+func runSignNodeECDSA(start types.CliMPCSignStartRes, myNodeID string, wsClient *ws.SDK, session *signSession) (signatureHex string, needRefreshWarm bool, materialUseCount int, err error) {
 	if session == nil || session.alice == nil {
 		return "", false, 0, errors.New("sign session is nil")
 	}
@@ -273,7 +273,7 @@ func runSignNodeECDSA(start types.CliMPCSignStartRes, myNodeID string, wsClient 
 	return out.SignatureHex, out.NeedRefreshWarm, out.MaterialUseCount, nil
 }
 
-func submitKeygenResult(wsClient *sdk.SocketSDK, taskID, nodeID, keyID, rootPubHex string) error {
+func submitKeygenResult(wsClient *ws.SDK, taskID, nodeID, keyID, rootPubHex string) error {
 	req := &types.CliMPCKeygenResultReq{
 		TaskID:     taskID,
 		NodeID:     nodeID,

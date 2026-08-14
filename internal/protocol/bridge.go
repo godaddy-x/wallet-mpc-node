@@ -4,7 +4,7 @@ import (
 	"sync"
 
 	sirLog "github.com/getamis/sirius/log"
-	"github.com/godaddy-x/freego/zlog"
+	"github.com/godaddy-x/freego/infra/zlog"
 	"github.com/godaddy-x/wallet-mpc-node/mpc"
 )
 

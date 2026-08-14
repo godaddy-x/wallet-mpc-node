@@ -1,7 +1,7 @@
 package types
 
 import (
-	"github.com/godaddy-x/freego/node/common"
+	common "github.com/godaddy-x/freego/protocol/dto"
 )
 
 //easyjson:json

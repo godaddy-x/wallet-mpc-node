@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/godaddy-x/freego/ex"
-	"github.com/godaddy-x/freego/zlog"
+	"github.com/godaddy-x/freego/core/ex"
+	"github.com/godaddy-x/freego/infra/zlog"
 	"go.uber.org/zap"
 )
 

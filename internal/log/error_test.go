@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/godaddy-x/freego/ex"
+	"github.com/godaddy-x/freego/core/ex"
 )
 
 func TestParseErrorPlain(t *testing.T) {
