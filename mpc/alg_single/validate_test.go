@@ -11,7 +11,7 @@ func TestValidateLoadedKeyRejectsMismatch(t *testing.T) {
 	testKeystoreKey(t)
 	dir := t.TempDir()
 	store := NewFileKeyStore(dir)
-	keyID, _, err := KeygenECDSA(store, "node0")
+	keyID, _, err := KeygenECDSA(store, "node0", "test-session")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestParseRootPrivateKeyRejectsOutOfRange(t *testing.T) {
 	testKeystoreKey(t)
 	dir := t.TempDir()
 	store := NewFileKeyStore(dir)
-	keyID, _, err := KeygenECDSA(store, "node0")
+	keyID, _, err := KeygenECDSA(store, "node0", "test-session")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func TestParseRootPrivateKeyRejectsPubMismatch(t *testing.T) {
 	testKeystoreKey(t)
 	dir := t.TempDir()
 	store := NewFileKeyStore(dir)
-	keyID, _, err := KeygenECDSA(store, "node0")
+	keyID, _, err := KeygenECDSA(store, "node0", "test-session")
 	if err != nil {
 		t.Fatal(err)
 	}

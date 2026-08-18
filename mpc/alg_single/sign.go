@@ -14,7 +14,7 @@ import (
 )
 
 // KeygenECDSA 生成 secp256k1 根密钥对并落盘。
-func KeygenECDSA(store *FileKeyStore, nodeID string) (keyID, rootPubHex string, err error) {
+func KeygenECDSA(store *FileKeyStore, nodeID, sessionID string) (keyID, rootPubHex string, err error) {
 	if store == nil {
 		return "", "", fmt.Errorf("single: nil keystore")
 	}
@@ -31,6 +31,7 @@ func KeygenECDSA(store *FileKeyStore, nodeID string) (keyID, rootPubHex string, 
 		Algorithm:  string(mpc.AlgECDSA),
 		KeyID:      keyID,
 		NodeID:     nodeID,
+		SessionID:  sessionID,
 		RootPubHex: rootPubHex,
 		PrivateKey: priv.D.Text(16),
 	}
@@ -93,7 +94,7 @@ func SignECDSA(data *NodeKeyData, accountIndex, change, addrIndex uint32, msgHas
 }
 
 // KeygenEd25519 生成 Ed25519 根密钥对并落盘（标量与 FROST share 同语义）。
-func KeygenEd25519(store *FileKeyStore, nodeID string) (keyID, rootPubHex string, err error) {
+func KeygenEd25519(store *FileKeyStore, nodeID, sessionID string) (keyID, rootPubHex string, err error) {
 	if store == nil {
 		return "", "", fmt.Errorf("single: nil keystore")
 	}
@@ -122,6 +123,7 @@ func KeygenEd25519(store *FileKeyStore, nodeID string) (keyID, rootPubHex string
 		Algorithm:  string(mpc.AlgEd25519),
 		KeyID:      keyID,
 		NodeID:     nodeID,
+		SessionID:  sessionID,
 		RootPubHex: rootPubHex,
 		PrivateKey: rootSk.Text(16),
 	}

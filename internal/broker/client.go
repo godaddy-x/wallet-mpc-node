@@ -108,6 +108,10 @@ func Run(cliConfig connect.SdkConfig) (stop func(), err error) {
 		tryNodeLogin(wsClient, cliConfig)
 	})
 
+	wsClient.SetDisconnectCallback(func() {
+		protocol.OnBrokerWsDisconnected(wsClient, cliConfig.Source)
+	})
+
 	wsClient.SetPushMessageCallback(func(router string, data []byte) {
 		switch router {
 		case "mpcTempPublicKey":
@@ -139,6 +143,10 @@ func Run(cliConfig connect.SdkConfig) (stop func(), err error) {
 			zlog.Info("Push received", 0, zlog.String("router", router), zlog.String("flow", "sign"), zlog.Int("len", len(data)))
 			if err := protocol.DeliverSignMsg(wsClient, cliConfig.Source, router, data); err != nil && err.Error() != "Error is nil" {
 				logBrokerError("mpcSignMsg deliver failed", cliConfig, err)
+			}
+		case "mpcTaskAbort":
+			if err := protocol.HandleMpcTaskAbort(wsClient, cliConfig.Source, data); err != nil {
+				logBrokerError("mpcTaskAbort handler failed", cliConfig, err)
 			}
 		}
 	})

@@ -2,6 +2,7 @@
 package protocol
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
@@ -9,6 +10,7 @@ import (
 	"github.com/godaddy-x/wallet-mpc-node/internal/config"
 	"github.com/godaddy-x/wallet-mpc-node/internal/log"
 	"github.com/godaddy-x/wallet-mpc-node/internal/tempkey"
+	"github.com/godaddy-x/wallet-mpc-node/internal/testhold"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -106,6 +108,39 @@ type keygenSession struct {
 	partyStarted atomic.Bool
 	mu           sync.Mutex
 	closed       bool
+	abortCtx     context.Context
+	abortCancel  context.CancelFunc
+	nodeIDs      []string
+	persistedKey string // Save 成功后的 keyID，abort 时尽力删除
+}
+
+func (s *keygenSession) markPersistedKey(keyID string) {
+	if s == nil || keyID == "" {
+		return
+	}
+	s.mu.Lock()
+	s.persistedKey = keyID
+	s.mu.Unlock()
+}
+
+func (s *keygenSession) takePersistedKey() string {
+	if s == nil {
+		return ""
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	id := s.persistedKey
+	s.persistedKey = ""
+	return id
+}
+
+func (s *keygenSession) isClosed() bool {
+	if s == nil {
+		return true
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.closed
 }
 
 func (s *keygenSession) notifyPartyReady() {
@@ -336,6 +371,9 @@ func DeliverKeygenMsg(wsClient *ws.SDK, myNodeID, router string, body []byte) er
 	}
 
 	taskID := res.TaskID
+	if isTaskAborted(taskID) {
+		return nil
+	}
 	sessionKey := keygenSessionKey(taskID, myNodeID)
 
 	s := getKeygenSession(taskID, myNodeID)
@@ -401,10 +439,11 @@ func DeliverKeygenMsg(wsClient *ws.SDK, myNodeID, router string, body []byte) er
 
 // RunKeygenNodeRealByAlg 按算法运行一次本节点的 keygen 协议（CGGMP / FROST / 单签）。
 func RunKeygenNodeRealByAlg(start types.CliMPCKeygenStartRes, myNodeID string, wsClient *ws.SDK, session *keygenSession) (keyID string, err error) {
-	if isSingleKeygenStart(start) {
-		kid, _, genErr := runSingleKeygenLocal(start, myNodeID)
-		return kid, genErr
+	var abortCtx context.Context
+	if session != nil {
+		abortCtx = session.abortCtx
 	}
+	testhold.Sleep(start.TaskID, abortCtx, isTaskAborted)
 	switch mpc.Algorithm(start.Algorithm) {
 	case mpc.AlgECDSA:
 		return runKeygenNodeECDSA(start, myNodeID, wsClient, session)
@@ -425,6 +464,9 @@ func submitKeygenResultWithRetry(wsClient *ws.SDK, req *types.CliMPCKeygenResult
 	backoff := []time.Duration{100 * time.Millisecond, 300 * time.Millisecond, 800 * time.Millisecond}
 	var lastErr error
 	for i := 1; i <= maxAttempts; i++ {
+		if req.TaskID != "" && isTaskAborted(req.TaskID) && req.Err != lastGaspErrMsg {
+			return errors.New("keygen result submit aborted: task " + req.TaskID)
+		}
 		var res types.CliMPCKeygenResultRes
 		err := wsClient.SendWebSocketMessage("/ws/mpcKeygenResult", req, &res, true, true, 30)
 		if err == nil && res.OK {
@@ -461,6 +503,23 @@ func submitKeygenResultErr(wsClient *ws.SDK, taskID, nodeID, errMsg string) erro
 	return nil
 }
 
+// submitKeygenResultLastGasp 断线路径专用：单次短超时，避免阻塞 freego disconnect 回调。
+func submitKeygenResultLastGasp(wsClient *ws.SDK, taskID, nodeID, errMsg string) error {
+	if wsClient == nil {
+		return errors.New("ws client nil")
+	}
+	if len(errMsg) > maxErrMsgLen {
+		errMsg = errMsg[:maxErrMsgLen] + "..."
+	}
+	req := &types.CliMPCKeygenResultReq{
+		TaskID: taskID,
+		NodeID: nodeID,
+		Err:    errMsg,
+	}
+	var res types.CliMPCKeygenResultRes
+	return wsClient.SendWebSocketMessage("/ws/mpcKeygenResult", req, &res, true, true, 3)
+}
+
 func HandleKeygenStart(wsClient *ws.SDK, myNodeID, router string, body []byte) error {
 	if len(body) == 0 {
 		return nil
@@ -484,6 +543,11 @@ func HandleKeygenStart(wsClient *ws.SDK, myNodeID, router string, body []byte) e
 	if err := utils.JsonUnmarshal(msg, &start); err != nil {
 		return err
 	}
+	noteStartingTask(start.TaskID, myNodeID)
+	defer clearStartingTask(start.TaskID, myNodeID)
+	if isTaskAborted(start.TaskID) {
+		return errors.New("keygen task aborted")
+	}
 	if start.ExpiredTime > 0 && start.ExpiredTime < utils.UnixSecond() {
 		return errors.New("mpc keygen task expired")
 	}
@@ -501,6 +565,10 @@ func HandleKeygenStart(wsClient *ws.SDK, myNodeID, router string, body []byte) e
 		}
 	}
 
+	if err := stopIfTaskAborted(wsClient, myNodeID, start.TaskID, "keygen"); err != nil {
+		return err
+	}
+
 	log.Keygenf("node=%s task=%s start, alg=%s threshold=%d, nodes=%v\n",
 		myNodeID, start.TaskID, start.Algorithm, start.Threshold, start.NodeIDs)
 
@@ -509,12 +577,34 @@ func HandleKeygenStart(wsClient *ws.SDK, myNodeID, router string, body []byte) e
 			log.Keygenf("node=%s task=%s duplicate mpcKeygenStart rejected\n", myNodeID, start.TaskID)
 			return errors.New("keygen already in progress for task")
 		}
+		abortCtx, abortCancel := context.WithCancel(context.Background())
+		session := &keygenSession{
+			recvCh:      make(chan recvItem, 1),
+			errCh:       make(chan error, 4),
+			abortCtx:    abortCtx,
+			abortCancel: abortCancel,
+			nodeIDs:     append([]string(nil), start.NodeIDs...),
+			router: &wsKeygenRouter{
+				taskID:   start.TaskID,
+				subject:  myNodeID,
+				wsClient: wsClient,
+			},
+		}
+		registerKeygenSession(start.TaskID, myNodeID, session)
+		if err := stopIfTaskAborted(wsClient, myNodeID, start.TaskID, "keygen"); err != nil {
+			return err
+		}
 		go func() {
 			defer func() {
 				endKeygenTask(start.TaskID, myNodeID)
-				tempkey.ClearKeygenSessionKeys(myNodeID, start.TaskID, start.NodeIDs)
+				if unregisterKeygenSession(start.TaskID, myNodeID, session) {
+					tempkey.ClearKeygenSessionKeys(myNodeID, start.TaskID, start.NodeIDs)
+				}
+				if session.abortCancel != nil {
+					session.abortCancel()
+				}
 			}()
-			_ = runSingleKeygen(start, myNodeID, wsClient)
+			_ = runSingleKeygen(start, myNodeID, wsClient, session)
 		}()
 		return nil
 	}
@@ -532,6 +622,7 @@ func HandleKeygenStart(wsClient *ws.SDK, myNodeID, router string, body []byte) e
 
 	recvCh := make(chan recvItem, mpcTssRecvChBuf)
 	errCh := make(chan error, 4)
+	abortCtx, abortCancel := context.WithCancel(context.Background())
 	routerStub := &wsKeygenRouter{
 		taskID:   start.TaskID,
 		subject:  myNodeID,
@@ -540,10 +631,13 @@ func HandleKeygenStart(wsClient *ws.SDK, myNodeID, router string, body []byte) e
 	}
 
 	session := &keygenSession{
-		router:     routerStub,
-		recvCh:     recvCh,
-		errCh:      errCh,
-		partyReady: make(chan struct{}, 1),
+		router:      routerStub,
+		recvCh:      recvCh,
+		errCh:       errCh,
+		partyReady:  make(chan struct{}, 1),
+		abortCtx:    abortCtx,
+		abortCancel: abortCancel,
+		nodeIDs:     append([]string(nil), start.NodeIDs...),
 	}
 	if mpc.Algorithm(start.Algorithm) == mpc.AlgEd25519 {
 		session.frost = newWSFrostRouter(start.TaskID, myNodeID, "keygen", sortedIDs, myIndex, wsClient)
@@ -551,6 +645,9 @@ func HandleKeygenStart(wsClient *ws.SDK, myNodeID, router string, body []byte) e
 		session.alice = newWSAliceRouter(start.TaskID, myNodeID, "keygen", sortedIDs, myIndex, wsClient)
 	}
 	registerKeygenSession(start.TaskID, myNodeID, session)
+	if err := stopIfTaskAborted(wsClient, myNodeID, start.TaskID, "keygen"); err != nil {
+		return err
+	}
 	var deliveryReady sync.WaitGroup
 	deliveryReady.Add(1)
 	go func() {
@@ -573,7 +670,9 @@ func HandleKeygenStart(wsClient *ws.SDK, myNodeID, router string, body []byte) e
 		keyID, err := RunKeygenNodeRealByAlg(start, myNodeID, wsClient, session)
 		if err != nil {
 			log.Keygenf("node=%s task=%s failed: %v\n", myNodeID, start.TaskID, err)
-			_ = submitKeygenResultErr(wsClient, start.TaskID, myNodeID, err.Error())
+			if !isTaskAborted(start.TaskID) {
+				_ = submitKeygenResultErr(wsClient, start.TaskID, myNodeID, err.Error())
+			}
 			return
 		}
 

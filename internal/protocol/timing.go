@@ -43,6 +43,9 @@ func sendMpcProtocolMsgWithRetry(wsClient *ws.SDK, route string, req *types.CliM
 	backoff := mpcProtocolSendBackoff()
 	var lastErr error
 	for i := 1; i <= maxAttempts; i++ {
+		if req.TaskID != "" && isTaskAborted(req.TaskID) {
+			return errors.New("mpc protocol send aborted: task " + req.TaskID)
+		}
 		var res types.CliMPCResultRes
 		err := wsClient.SendWebSocketMessage(route, req, &res, true, true, mpcProtocolWSReqSec)
 		if err == nil && res.OK {

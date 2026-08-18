@@ -2,7 +2,6 @@
 package protocol
 
 import (
-	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -89,7 +88,7 @@ func runKeygenNodeFROST(start types.CliMPCKeygenStartRes, myNodeID string, wsCli
 	sortedIDs := router.sortedIDs
 	threshold := uint32(start.Threshold)
 
-	ctx, cancel := context.WithTimeout(context.Background(), frostKeygenTimeout)
+	ctx, cancel := keygenProtocolCtx(session, frostKeygenTimeout)
 	defer cancel()
 
 	router.setPhase("dkg")
@@ -114,6 +113,13 @@ func runKeygenNodeFROST(start types.CliMPCKeygenStartRes, myNodeID string, wsCli
 	store := alg_ed25519.NewFileKeyStore(config.ShardKeysDir())
 	if err := store.Save(shareData); err != nil {
 		return "", fmt.Errorf("save frost share: %w", err)
+	}
+	session.markPersistedKey(keyID)
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if isTaskAborted(start.TaskID) {
+		return "", errors.New("keygen task aborted")
 	}
 	return keyID, nil
 }
@@ -145,7 +151,7 @@ func runSignNodeFROST(start types.CliMPCSignStartRes, myNodeID string, wsClient 
 		return "", false, 0, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), frostSignTimeout)
+	ctx, cancel := signProtocolCtx(session, frostSignTimeout)
 	defer cancel()
 
 	enableAliceProtocolTrace()

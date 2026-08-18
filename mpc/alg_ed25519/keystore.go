@@ -84,6 +84,15 @@ func (f *FileKeyStore) Load(keyID, nodeID string) (*NodeShareData, error) {
 	return &data, nil
 }
 
+// Delete 删除本地份额文件（abort 未确认分片时尽力清理）。
+func (f *FileKeyStore) Delete(keyID, nodeID string) error {
+	path := f.path(keyID, nodeID)
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
 func BuildNodeShareData(keyID, nodeID, sessionID string, allNodeIDs []string, threshold uint32, result *dkgpkg.Result) (*NodeShareData, error) {
 	pubHex, err := PubHexFromPoint(result.PublicKey)
 	if err != nil {

@@ -140,7 +140,7 @@ func runKeygenNodeECDSA(start types.CliMPCKeygenStartRes, myNodeID string, wsCli
 	sortedIDs := alice.sortedIDs
 	threshold := uint32(start.Threshold)
 
-	ctx, cancel := context.WithTimeout(context.Background(), ecdsaKeygenTimeout)
+	ctx, cancel := keygenProtocolCtx(session, ecdsaKeygenTimeout)
 	defer cancel()
 
 	alice.partPub = alg_ecdsa.NewPartialPubCollector(myNodeID, sortedIDs)
@@ -168,6 +168,13 @@ func runKeygenNodeECDSA(start types.CliMPCKeygenStartRes, myNodeID string, wsCli
 	if err := store.Save(shareData); err != nil {
 		return "", fmt.Errorf("save ecdsa share: %w", err)
 	}
+	session.markPersistedKey(keyID)
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if isTaskAborted(start.TaskID) {
+		return "", errors.New("keygen task aborted")
+	}
 	return keyID, nil
 }
 
@@ -180,7 +187,7 @@ func runWarmRefreshNodeECDSA(start types.CliMPCSignStartRes, myNodeID string, ws
 	sessionKey := ecdsaWarmSessionKey(start.KeyID, participants)
 	cancelPriorEcdsaWarm(sessionKey)
 
-	ctx, cancel := context.WithTimeout(context.Background(), ecdsaSignTimeout)
+	ctx, cancel := signProtocolCtx(session, ecdsaSignTimeout)
 	warmID := registerEcdsaWarmCancel(sessionKey, cancel)
 	defer func() {
 		unregisterEcdsaWarmCancel(sessionKey, warmID)
@@ -243,7 +250,7 @@ func runSignNodeECDSA(start types.CliMPCSignStartRes, myNodeID string, wsClient 
 		return "", false, 0, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), ecdsaSignTimeout)
+	ctx, cancel := signProtocolCtx(session, ecdsaSignTimeout)
 	defer cancel()
 
 	enableAliceProtocolTrace()

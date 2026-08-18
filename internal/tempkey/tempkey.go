@@ -13,6 +13,7 @@ import (
 	"github.com/godaddy-x/freego/client/ws"
 	"github.com/godaddy-x/freego/core/str"
 	"github.com/godaddy-x/freego/infra/cachelocal"
+	"github.com/godaddy-x/wallet-mpc-node/internal/testhold"
 	"github.com/godaddy-x/wallet-mpc-node/types"
 )
 
@@ -172,6 +173,7 @@ func HandleTempPublicKey(wsClient *ws.SDK, subject, router string, data []byte) 
 	default:
 		return errors.New("HandleTempPublicKey invalid module: " + request.Module)
 	}
+	testhold.Sleep(request.TaskID, nil, nil)
 	dk, err := ecc.CreateMLKEM1024()
 	if err != nil {
 		return errors.New("HandleTempPublicKey create ML-KEM-1024 key error: " + err.Error())

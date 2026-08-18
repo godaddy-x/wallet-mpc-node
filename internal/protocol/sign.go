@@ -3,6 +3,7 @@ package protocol
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
@@ -17,6 +18,7 @@ import (
 	"github.com/godaddy-x/freego/core/str"
 	"github.com/godaddy-x/wallet-mpc-node/internal/log"
 	"github.com/godaddy-x/wallet-mpc-node/internal/tempkey"
+	"github.com/godaddy-x/wallet-mpc-node/internal/testhold"
 	"github.com/godaddy-x/wallet-mpc-node/mpc"
 	"github.com/godaddy-x/wallet-mpc-node/types"
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -91,10 +93,11 @@ func RunSignNodeRealByAlg(
 	if start.RefreshWarmOnly {
 		return "", false, 0, errors.New("RefreshWarmOnly task must use warm handler, not sign")
 	}
-	if isSingleSignStart(start) {
-		sig, _, signErr := runSingleSignLocal(start, myNodeID)
-		return sig, false, 0, signErr
+	var abortCtx context.Context
+	if session != nil {
+		abortCtx = session.abortCtx
 	}
+	testhold.Sleep(start.TaskID, abortCtx, isTaskAborted)
 	switch mpc.Algorithm(start.Algorithm) {
 	case mpc.AlgECDSA:
 		return runSignNodeECDSA(start, myNodeID, wsClient, session)
@@ -120,6 +123,9 @@ func submitSignResultWithRetry(
 	backoff := []time.Duration{100 * time.Millisecond, 300 * time.Millisecond, 800 * time.Millisecond}
 	var lastErr error
 	for i := 1; i <= maxAttempts; i++ {
+		if req.TaskID != "" && isTaskAborted(req.TaskID) && req.Err != lastGaspErrMsg {
+			return errors.New("sign result submit aborted: task " + req.TaskID)
+		}
 		log.SignErrf("TRACE_NODE_SUBMIT_SIGN_RESULT_BEGIN node=%s task=%s attempt=%d/%d hasErr=%t sigLen=%d",
 			myNodeID, req.TaskID, i, maxAttempts, req.Err != "", len(req.SignatureHex))
 		var res types.CliMPCSignResultRes
@@ -175,8 +181,13 @@ func HandleSignStart(wsClient *ws.SDK, myNodeID, router string, body []byte) err
 	if err := utils.JsonUnmarshal(msg, &start); err != nil {
 		return err
 	}
+	noteStartingTask(start.TaskID, myNodeID)
+	defer clearStartingTask(start.TaskID, myNodeID)
 	if start.ExpiredTime > 0 && start.ExpiredTime < utils.UnixSecond() {
 		return errors.New("mpc sign task expired")
+	}
+	if isTaskAborted(start.TaskID) {
+		return errors.New("sign task aborted")
 	}
 
 	if err := tempkey.RefreshSignPrivateKeyTTL(myNodeID, start.TaskID); err != nil {
@@ -195,6 +206,10 @@ func HandleSignStart(wsClient *ws.SDK, myNodeID, router string, body []byte) err
 		if err := tempkey.PutPeerPublicKey("sign", v.Subject, start.TaskID, v.PublicKey, tempkey.SignCacheTTL); err != nil {
 			return errors.New("HandleSignStart put tempPublicKey error: " + err.Error())
 		}
+	}
+
+	if err := stopIfTaskAborted(wsClient, myNodeID, start.TaskID, "sign"); err != nil {
+		return err
 	}
 
 	log.SignErrf("TRACE_NODE_SIGN_START_RECEIVED node=%s task=%s alg=%s keyID=%s threshold=%d warmOnly=%t allNodes=%v signNodes=%v",
@@ -228,12 +243,35 @@ func HandleSignStart(wsClient *ws.SDK, myNodeID, router string, body []byte) err
 			log.SignErrf("TRACE_NODE_SIGN_START_DUPLICATE node=%s task=%s keyID=%s", myNodeID, start.TaskID, start.KeyID)
 			return errors.New("sign already in progress for task")
 		}
+		abortCtx, abortCancel := context.WithCancel(context.Background())
+		session := &signSession{
+			keyID:       start.KeyID,
+			recvCh:      make(chan recvItem, 1),
+			errCh:       make(chan error, 4),
+			abortCtx:    abortCtx,
+			abortCancel: abortCancel,
+			allNodeIDs:  append([]string(nil), start.AllNodeIDs...),
+			router: &wsSignRouter{
+				taskID:   start.TaskID,
+				subject:  myNodeID,
+				wsClient: wsClient,
+			},
+		}
+		registerSignSession(start.TaskID, myNodeID, session)
+		if err := stopIfTaskAborted(wsClient, myNodeID, start.TaskID, "sign"); err != nil {
+			return err
+		}
 		go func() {
 			defer func() {
 				endSignTask(start.TaskID, myNodeID)
-				tempkey.ClearSignSessionKeys(myNodeID, start.TaskID, start.AllNodeIDs)
+				if unregisterSignSession(start.TaskID, myNodeID, session) {
+					tempkey.ClearSignSessionKeys(myNodeID, start.TaskID, start.AllNodeIDs)
+				}
+				if session.abortCancel != nil {
+					session.abortCancel()
+				}
 			}()
-			_ = runSingleSign(start, myNodeID, wsClient)
+			_ = runSingleSign(start, myNodeID, wsClient, session)
 		}()
 		return nil
 	}
@@ -279,6 +317,9 @@ func HandleSignStart(wsClient *ws.SDK, myNodeID, router string, body []byte) err
 		}
 	}
 
+	if err := stopIfTaskAborted(wsClient, myNodeID, start.TaskID, "sign"); err != nil {
+		return err
+	}
 	if !beginSignTask(start.TaskID, myNodeID, start.KeyID) {
 		log.SignErrf("TRACE_NODE_SIGN_START_DUPLICATE node=%s task=%s keyID=%s", myNodeID, start.TaskID, start.KeyID)
 		return errors.New("sign already in progress for task")
@@ -286,6 +327,7 @@ func HandleSignStart(wsClient *ws.SDK, myNodeID, router string, body []byte) err
 
 	recvCh := make(chan recvItem, mpcTssRecvChBuf)
 	errCh := make(chan error, 4)
+	abortCtx, abortCancel := context.WithCancel(context.Background())
 	routerStub := &wsSignRouter{
 		taskID:   start.TaskID,
 		subject:  myNodeID,
@@ -293,11 +335,14 @@ func HandleSignStart(wsClient *ws.SDK, myNodeID, router string, body []byte) err
 		wsClient: wsClient,
 	}
 	session := &signSession{
-		keyID:      start.KeyID,
-		router:     routerStub,
-		recvCh:     recvCh,
-		errCh:      errCh,
-		partyReady: make(chan struct{}, 1),
+		keyID:       start.KeyID,
+		router:      routerStub,
+		recvCh:      recvCh,
+		errCh:       errCh,
+		partyReady:  make(chan struct{}, 1),
+		abortCtx:    abortCtx,
+		abortCancel: abortCancel,
+		allNodeIDs:  append([]string(nil), start.AllNodeIDs...),
 	}
 	if mpc.Algorithm(start.Algorithm) == mpc.AlgEd25519 {
 		session.frost = newWSFrostRouter(start.TaskID, myNodeID, "sign", signParticipants, myIndex, wsClient)
@@ -305,6 +350,9 @@ func HandleSignStart(wsClient *ws.SDK, myNodeID, router string, body []byte) err
 		session.alice = newWSAliceRouter(start.TaskID, myNodeID, "sign", signParticipants, myIndex, wsClient)
 	}
 	registerSignSession(start.TaskID, myNodeID, session)
+	if err := stopIfTaskAborted(wsClient, myNodeID, start.TaskID, "sign"); err != nil {
+		return err
+	}
 	var deliveryReady sync.WaitGroup
 	deliveryReady.Add(1)
 	go func() {
@@ -348,14 +396,16 @@ func HandleSignStart(wsClient *ws.SDK, myNodeID, router string, body []byte) err
 		sigHex, needRefreshWarm, materialUseCount, err := RunSignNodeRealByAlg(start, myNodeID, wsClient, session)
 		if err != nil {
 			log.SignErrf("TRACE_NODE_SIGN_FAILED node=%s task=%s err=%v", myNodeID, start.TaskID, err)
-			req := &types.CliMPCSignResultReq{
-				TaskID: start.TaskID,
-				NodeID: nodeID,
-				KeyID:  start.KeyID,
-				Err:    err.Error(),
-			}
-			if submitErr := submitSignResultWithRetry(wsClient, myNodeID, req, 3); submitErr != nil {
-				log.SignErrf("TRACE_NODE_SUBMIT_ERROR_RESULT_FINAL_FAILED node=%s task=%s err=%v", myNodeID, start.TaskID, submitErr)
+			if !isTaskAborted(start.TaskID) {
+				req := &types.CliMPCSignResultReq{
+					TaskID: start.TaskID,
+					NodeID: nodeID,
+					KeyID:  start.KeyID,
+					Err:    err.Error(),
+				}
+				if submitErr := submitSignResultWithRetry(wsClient, myNodeID, req, 3); submitErr != nil {
+					log.SignErrf("TRACE_NODE_SUBMIT_ERROR_RESULT_FINAL_FAILED node=%s task=%s err=%v", myNodeID, start.TaskID, submitErr)
+				}
 			}
 			return
 		}
@@ -398,6 +448,9 @@ type signSession struct {
 	partyStarted atomic.Bool
 	mu           sync.Mutex
 	closed       bool
+	abortCtx     context.Context
+	abortCancel  context.CancelFunc
+	allNodeIDs   []string
 }
 
 func (s *signSession) isClosed() bool {
@@ -407,23 +460,6 @@ func (s *signSession) isClosed() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.closed
-}
-
-// abortSignSessionTempKeyLost 连接抖动后 temp key 丢失：取消进行中的 warm/sign，避免占位导致协议超时。
-func abortSignSessionTempKeyLost(nodeID, taskID string) {
-	s := getSignSession(taskID, nodeID)
-	if s == nil {
-		return
-	}
-	log.SignErrf("TRACE_NODE_SIGN_ABORT_TEMP_KEY node=%s task=%s keyID=%s", nodeID, taskID, s.keyID)
-	if s.alice != nil && s.keyID != "" {
-		cancelPriorEcdsaWarm(ecdsaWarmSessionKey(s.keyID, s.alice.sortedIDs))
-	}
-	select {
-	case s.errCh <- errors.New("temp decaps key is nil"):
-	default:
-	}
-	s.close()
 }
 
 func (s *signSession) notifyPartyReady() {
@@ -665,6 +701,9 @@ func DeliverSignMsg(wsClient *ws.SDK, myNodeID, router string, body []byte) erro
 	if err := utils.JsonUnmarshal(body, &decrypt); err != nil {
 		return err
 	}
+	if isTaskAborted(decrypt.TaskID) {
+		return nil
+	}
 	prk, err := tempkey.DecapsKey("sign", myNodeID, decrypt.TaskID)
 	if err != nil {
 		return err
@@ -672,7 +711,7 @@ func DeliverSignMsg(wsClient *ws.SDK, myNodeID, router string, body []byte) erro
 	if prk == nil {
 		log.SignErrf("TRACE_NODE_SIGN_DELIVER_NO_DECAPS_KEY node=%s task=%s (temp key expired or missing?)",
 			myNodeID, decrypt.TaskID)
-		abortSignSessionTempKeyLost(myNodeID, decrypt.TaskID)
+		abortTaskSession(wsClient, myNodeID, decrypt.TaskID, "temp_decaps_key_lost", false)
 		return errors.New("temp decaps key is nil")
 	}
 	msg, err := ecc.DecryptMLKEM1024(prk, utils.Base64Decode(decrypt.Data), utils.Str2Bytes(utils.AddStr(decrypt.TaskID, "|", myNodeID, "|mpcSignMsg")), nil)

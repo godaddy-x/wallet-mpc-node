@@ -7,13 +7,13 @@ import (
 	"github.com/godaddy-x/wallet-mpc-node/types"
 )
 
-// RunKeygen 按算法执行单签 Keygen 并落盘。
-func RunKeygen(alg mpc.Algorithm, store *FileKeyStore, nodeID string) (keyID, rootPubHex string, err error) {
+// RunKeygen 按算法执行单签 Keygen 并落盘。sessionID 为 keygen taskID，供 abort 清理校验。
+func RunKeygen(alg mpc.Algorithm, store *FileKeyStore, nodeID, sessionID string) (keyID, rootPubHex string, err error) {
 	switch alg {
 	case mpc.AlgECDSA:
-		return KeygenECDSA(store, nodeID)
+		return KeygenECDSA(store, nodeID, sessionID)
 	case mpc.AlgEd25519:
-		return KeygenEd25519(store, nodeID)
+		return KeygenEd25519(store, nodeID, sessionID)
 	default:
 		return "", "", fmt.Errorf("single: unsupported algorithm %s", alg)
 	}

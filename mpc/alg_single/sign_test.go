@@ -19,7 +19,7 @@ func TestSingleECDSAKeygenSignHD(t *testing.T) {
 	testKeystoreKey(t)
 	dir := t.TempDir()
 	store := NewFileKeyStore(dir)
-	keyID, rootPub, err := KeygenECDSA(store, "node0")
+	keyID, rootPub, err := KeygenECDSA(store, "node0", "test-session")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestSingleEd25519KeygenSignHD(t *testing.T) {
 	testKeystoreKey(t)
 	dir := t.TempDir()
 	store := NewFileKeyStore(dir)
-	keyID, rootPub, err := KeygenEd25519(store, "node0")
+	keyID, rootPub, err := KeygenEd25519(store, "node0", "test-session")
 	if err != nil {
 		t.Fatal(err)
 	}

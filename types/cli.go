@@ -248,6 +248,16 @@ type CliMPCSignMsgRes struct {
 	IsBroadcast     bool   `json:"isBroadcast"`
 }
 
+// CliMPCTaskAbortRes broker 推送任务中止（push: mpcTaskAbort）
+//
+//easyjson:json
+type CliMPCTaskAbortRes struct {
+	TaskID       string   `json:"taskID"`
+	Module       string   `json:"module"` // keygen | sign
+	Reason       string   `json:"reason"`
+	OfflineNodes []string `json:"offlineNodes"`
+}
+
 //easyjson:json
 type CliMPCResultRes struct {
 	OK bool `json:"ok"`

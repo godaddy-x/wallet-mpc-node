@@ -18,6 +18,7 @@ type NodeKeyData struct {
 	Algorithm  string `json:"algorithm"`
 	KeyID      string `json:"keyID"`
 	NodeID     string `json:"nodeID"`
+	SessionID  string `json:"sessionId,omitempty"` // keygen taskID；abort 清理时校验
 	RootPubHex string `json:"rootPubHex"`
 	PrivateKey string `json:"privateKey"` // scalar hex (mod curve order)
 }
@@ -88,6 +89,15 @@ func (f *FileKeyStore) Load(keyID, nodeID string) (*NodeKeyData, error) {
 func (f *FileKeyStore) Exists(keyID, nodeID string) bool {
 	_, err := os.Stat(f.path(keyID, nodeID))
 	return err == nil
+}
+
+// Delete 删除本地单签密钥文件（abort 未确认 key 时尽力清理）。
+func (f *FileKeyStore) Delete(keyID, nodeID string) error {
+	path := f.path(keyID, nodeID)
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 func ParseAlgorithm(s string) (mpc.Algorithm, error) {
